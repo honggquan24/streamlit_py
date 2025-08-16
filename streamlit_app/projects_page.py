@@ -2,6 +2,8 @@ import streamlit as st
 import functools
 import projects.rotary_pendulum_sac_simscape.show_rotary_pendulum_sac_simscape as rotary_project
 import projects.argi_crop_classification.show_argi_crop_classification as argi_project
+import projects.house_price_prediction.show_house_price_prediction as house_price_project
+import projects.mlp_from_scratch.show_mlp_from_scratch as mlp_project
 
 # Projects page configuration
 st.set_page_config(
@@ -9,31 +11,17 @@ st.set_page_config(
     layout="wide"
 )
 
-# Dữ liệu dự án
-
-
-def decorator(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        st.markdown("---")
-        func(*args, **kwargs)
-    return wrapper
-
-@decorator
-def rotary_project_show_project():
-    """Show the rotary pendulum project."""
-    rotary_project.show_project()
-
-@decorator
-def argi_project_show_project():
-    """Show the argi crop classification project."""
-    argi_project.show_project()
-
 def show_projects():
     st.title("Projects")
+    st.markdown("---")
+    rotary_project.show_project()  # Show the rotary pendulum project
 
-    rotary_project_show_project()  # Show the rotary pendulum project
+    st.markdown("---")
+    argi_project.show_project()  # Show the argi crop classification project
 
-    argi_project_show_project()  # Show the argi crop classification project
+    st.markdown("---")
+    house_price_project.show_project()  # Show the house price prediction project
 
+    st.markdown("---")
+    mlp_project.show_project()  # Show the MLP from scratch project
 

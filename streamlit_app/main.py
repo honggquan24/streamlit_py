@@ -1,97 +1,88 @@
+# main.py
 import streamlit as st
+
+import home
 import about
-import experience
 import education
+import experience
 import projects_page
-import home 
 import resume
+import theme  
 
+# ---------- PAGE CONFIG ----------
+st.set_page_config(page_title="Vo Hong Quan's Portfolio", layout="wide")
 
-st.set_page_config(
-    page_title="Vo Hong Quan's Portfolio",  # Set the page title
-    layout="wide"  # Set the layout to wide) 
-)       
+# ---------- INJECT CSS ----------
+st.markdown(theme.get_css(), unsafe_allow_html=True)
 
-# Load Font Awesome (chèn đầu trang để đảm bảo được nhận)
-# Font Awesome là thư viện cung cấp hàng nghìn icon vector (GitHub, LinkedIn, Instagram, v.v.).
-# st.markdown(..., unsafe_allow_html=True) cho phép Streamlit nhúng trực tiếp HTML
-#  (vì mặc định Streamlit chặn HTML để bảo mật).
-# Dòng <link rel="stylesheet" ...> là cách nhúng file CSS chứa định nghĩa các icon.
-# Bọc trong <head>...</head> là không bắt buộc, nhưng giúp đúng cấu trúc HTML chuẩn.
+# ---------- LAYOUT: 3 CỘT ----------
+left, spacer, right = st.columns([3, 1, 6])
 
-st.markdown("""
-    <head>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    </head>
-    """,
-    unsafe_allow_html=True
-)
+# ===== LEFT: PROFILE (gói tất cả trong 1 markdown để không lệch) =====
+profile_html = """
+<div class="card profile-section">
+  <!-- Floating dots (để nhẹ, dùng box-shadow/gradient) -->
+  <div class="floating-element"></div>
+  <div class="floating-element"></div>
+  <div class="floating-element"></div>
 
-cols = st.columns([3, 1, 6])  # Left 30%, Mid 10% and right 60% of the screen
-with cols[0]:
-    st.title("Vo Hong Quan")
-    st.subheader("AI Engineer")
-    st.write("This is my personal portfolio website, which showcases my skills and projects in AI engineering." \
-    " I hope you can find it useful and inspiring.")
-    st.markdown("<br><br>", unsafe_allow_html=True)
+  <h1 class="main-title">Vo Hong Quan</h1>
+  <h2 class="subtitle">AI Engineer</h2>
 
-    # Contact info (optional: use button or text input)
-    st.markdown("##### Contact Me")
-    email = st.write("Email: 22134012@student.hcmute.edu.vn")
-    phone = st.write("Phone: ", "0363645485")
+  <div class="decoration-line"></div>
 
-    # Social icons
-    # <div style=...>	Tạo một khối ngang (flex) để chứa icon.
-    # display: flex	Sắp các phần tử con nằm ngang (thay vì dọc).
-    # justify-content: left	Căn lề trái, có thể đổi sang center, space-between ...
-    # gap: 2rem	Khoảng cách giữa các icon.
-    # padding: 1.5rem 0	Khoảng cách top-bottom là 1.5 rem.
-    # <a href=...>	Gắn link cho từng icon, mở tab mới (target="_blank").
-    # <i class="fab fa-github fa-2x">	Dùng icon GitHub (Font Awesome Brands), kích thước gấp đôi.
-    # style="color:#8892b0;"	Màu icon hơi xám xanh, giống UI hiện đại.
-    # fab = Font Awesome Brands → dùng cho các logo (GitHub, Instagram…)
-    # fa-github, fa-linkedin, v.v. = tên riêng từng icon.
-    # fa-2x, fa-3x, ... = tăng kích thước icon.
-    # st.markdown(..., unsafe_allow_html=True) = kích hoạt HTML thuần bên trong Streamlit.
-    st.markdown(
-        """
-        <div style="display:flex; justify-content:left; gap:2rem; padding:1.5rem 0;">
-            <a href="https://github.com/honggquan24" target="_blank">
-                <i class="fab fa-github fa-2x" style="color:#8892b0;"></i>
-            </a>
-            <a href="https://www.linkedin.com/in/vo-hong-quan-b50063373/" target="_blank">
-                <i class="fab fa-linkedin fa-2x" style="color:#8892b0;"></i>
-            </a>
-            <a href="https://www.kaggle.com/honggquan" target="_blank">
-                <i class="fab fa-kaggle fa-2x" style="color:#8892b0;"></i>
-            </a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+  <div class="card contact-section">
+    <h5><i class="fas fa-address-book"></i> Get In Touch</h5>
+    <div class="contact-item">
+      <i class="fas fa-envelope"></i>
+      <a href="mailto:vohongquan6524@gmail.com" style="color:inherit;text-decoration:none">
+        22134012@student.hcmute.edu.vn
+      </a>
+    </div>
+    <div class="contact-item">
+      <i class="fas fa-phone"></i>
+      <a href="tel:+84363645485" style="color:inherit;text-decoration:none">0363645485</a>
+    </div>
+    <div class="contact-item">
+      <i class="fas fa-map-marker-alt"></i>
+      Ho Chi Minh City, Vietnam
+    </div>
+  </div>
 
+  <div class="decoration-line"></div>
+  
+  <div class="card social-container" style="margin-top:1rem">
+    <h5><i class="fas fa-share-alt"></i> Connect With Me</h5>
+    <div class="social-icons">
+      <a href="https://github.com/honggquan24" target="_blank" class="social-icon" aria-label="GitHub">
+        <i class="fab fa-github"></i>
+      </a>
+      <a href="https://www.linkedin.com/in/vo-hong-quan-b50063373/" target="_blank" class="social-icon" aria-label="LinkedIn">
+        <i class="fab fa-linkedin"></i>
+      </a>
+      <a href="https://www.kaggle.com/honggquan" target="_blank" class="social-icon" aria-label="Kaggle">
+        <i class="fab fa-kaggle"></i>
+      </a>
+    </div>
+  </div>
+</div>
+"""
+with left:
+    st.markdown(profile_html, unsafe_allow_html=True)
 
-
-
-
-with cols[2]:
-    
-    tabs = st.tabs(["Home", "About", "Education",  "Experience", "Projects", "Resume"])
+# ===== RIGHT: TABS (không bọc <div> thủ công để tránh ô rỗng) =====
+with right:
+    tabs = st.tabs(["Home", "About", "Education", "Experience", "Projects", "Resume"])
 
     with tabs[0]:
-        home.show_home()  # Call the home page function
-        
+        home.show_home()
     with tabs[1]:
         about.show_about()
-
     with tabs[2]:
         education.show_education()
-
     with tabs[3]:
         experience.show_experience()
-
     with tabs[4]:
         projects_page.show_projects()
-
     with tabs[5]:
         resume.show_resume()
