@@ -29,5 +29,8 @@ def show_project():
                 
             with c12:
                 # https://vhq-portfolio.streamlit.app/ or http://localhost:8501/
-                st.link_button("Demo", "http://localhost:8501/Demo_Multilayer_Perceptron")
+                try:
+                    st.link_button("Demo", "https://localhost:8501/")
+                except:
+                    st.link_button("Demo", "https://vhq-portfolio.streamlit.app/")
 
