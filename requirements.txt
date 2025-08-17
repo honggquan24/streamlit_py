@@ -1,0 +1,12 @@
+tensorflow
+keras
+scikit-learn
+numpy
+pandas
+matplotlib
+seaborn
+pillow
+scipy
+plotly
+pandas
+requests
