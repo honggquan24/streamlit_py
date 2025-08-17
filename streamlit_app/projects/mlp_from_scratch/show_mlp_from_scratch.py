@@ -1,4 +1,5 @@
 import streamlit as st
+from pathlib import Path
 
 def show_project():
     with st.container():
@@ -25,5 +26,8 @@ def show_project():
             c11, c12 = st.columns(2)
             with c11:
                 st.link_button("GitHub", "https://github.com/honggquan24/MLP-from-scratch")
-            # with c12:
-            #     st.link_button("Demo", "https://your-streamlit-demo-url")
+                
+            with c12:
+                # https://vhq-portfolio.streamlit.app/ or http://localhost:8501/
+                st.link_button("Demo", "http://localhost:8501/Demo_Multilayer_Perceptron")
+
