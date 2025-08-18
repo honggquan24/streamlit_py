@@ -313,53 +313,55 @@ def main():
             </div>
         """, unsafe_allow_html=True)
     
-    # configuration
-    st.markdown('<h2 class="sub-header"> Configuration</h2>', unsafe_allow_html=True)
-    
-    # Problem type selection
-    problem_type = st.selectbox(
-        "Select type of problem",
-        ["Classification - Spiral", "Classification - Circles", "Classification - XOR", "Regression - Polynomial"]
-    )
-    
-    # Data generation
-    st.markdown("### Data Parameters")
-    
-    if "Classification" in problem_type:
-        if "XOR" in problem_type:
-            n_samples = 4
-            st.info("XOR problem has fixed 4 samples")
+    col1, col2, col3 = st.columns([1, 1, 1])
+
+    with col1:
+        # configuration
+        st.markdown('<h2 class="sub-header"> Configuration</h2>', unsafe_allow_html=True)
+        
+        # Problem type selection
+        problem_type = st.selectbox(
+            "Select type of problem",
+            ["Classification - Spiral", "Classification - Circles", "Classification - XOR", "Regression - Polynomial"]
+        )
+        # Data generation
+        st.markdown("### Data Parameters")
+        
+        if "Classification" in problem_type:
+            if "XOR" in problem_type:
+                n_samples = 4
+                st.info("XOR problem has fixed 4 samples")
+            else:
+                n_samples = st.slider("Number of samples per class", 1, 500, 200)
+                n_classes = st.slider("Number of classes", 2, 5, 3)
         else:
-            n_samples = st.slider("Number of samples per class", 1, 500, 200)
-            n_classes = st.slider("Number of classes", 2, 5, 3)
-    else:
-        n_samples = st.slider("Number of samples", 100, 1000, 200)
-    
-    # Network architecture
-    st.markdown("### Network Architecture")
-    
-    if "XOR" in problem_type:
-        hidden_sizes = [4]  # Fixed for XOR
-        st.info("XOR uses fixed architecture: 2 → 4 → 1")
-    else:
-        n_hidden_layers = st.slider("Number of hidden layers", 1, 5, 2)
-        hidden_sizes = []
-        for i in range(n_hidden_layers):
-            size = st.slider(f"Hidden layer {i+1} size", 8, 512, 64)
-            hidden_sizes.append(size)
-    
-    activation = st.selectbox("Activation function", ["ReLU", "Sigmoid", "Tanh"])
-    
-    # Training parameters
-    st.markdown("### Training Parameters")
-    
-    optimizer_type = st.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
-    learning_rate = st.slider("Learning rate", 0.0001, 0.1, 0.001, format="%.4f")
-    epochs = st.slider("Epochs", 10, 1000, 100)
-    batch_size = st.slider("Batch size", 8, 256, 32) if not "XOR" in problem_type else 4
+            n_samples = st.slider("Number of samples", 100, 1000, 200)
+    with col2:
+        # Network architecture
+        st.markdown("### Network Architecture")
+        
+        if "XOR" in problem_type:
+            hidden_sizes = [4]  # Fixed for XOR
+            st.info("XOR uses fixed architecture: 2 → 4 → 1")
+        else:
+            n_hidden_layers = st.slider("Number of hidden layers", 1, 5, 2)
+            hidden_sizes = []
+            for i in range(n_hidden_layers):
+                size = st.slider(f"Hidden layer {i+1} size", 8, 512, 64)
+                hidden_sizes.append(size)
+        
+        activation = st.selectbox("Activation function", ["ReLU", "Sigmoid", "Tanh"])
+    with col3:
+        # Training parameters
+        st.markdown("### Training Parameters")
+        
+        optimizer_type = st.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
+        learning_rate = st.slider("Learning rate", 0.0001, 0.1, 0.001, format="%.4f")
+        epochs = st.slider("Epochs", 10, 1000, 100)
+        batch_size = st.slider("Batch size", 8, 256, 32) if not "XOR" in problem_type else 4
     
     # Generate data
-    if st.button("🔄 Generate New Data"):
+    if st.button("Click Here to generate New Data"):
         if 'X' in st.session_state:
             del st.session_state.X
             del st.session_state.y
@@ -384,7 +386,7 @@ def main():
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.markdown('<h3 class="sub-header">📈 Data Visualization</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 class="sub-header">Data Visualization</h3>', unsafe_allow_html=True)
         
         if X.shape[1] == 2:  # 2D data
             fig_data = plot_data_2d(X, y, f"{problem_type} Data")
@@ -401,10 +403,10 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
         
         # Data info
-        st.info(f"📊 Dataset: {X.shape[0]} samples, {X.shape[1]} features")
+        st.info(f"Dataset: {X.shape[0]} samples, {X.shape[1]} features")
     
     with col2:
-        st.markdown('<h3 class="sub-header">🏗️ Network Architecture</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 class="sub-header">Network Architecture</h3>', unsafe_allow_html=True)
         
         # Display network architecture
         arch_text = f"Input ({X.shape[1]})"
@@ -432,7 +434,7 @@ def main():
         st.write(f"- Activation: {activation}")
     
     # Training section
-    if st.button("🚀 Start Training", type="primary"):
+    if st.button("Start Training", type="primary"):
         with st.spinner("Training neural network..."):
             # Create model
             model = nn_modules['NeuralNetwork']()
@@ -662,7 +664,7 @@ def main():
     # Footer
     st.markdown("---")
     st.markdown(
-        "**🧠 Neural Network Demo** - Built from scratch with custom implementation. "
+        "**Neural Network Demo** - Built from scratch with custom implementation. "
         "This demo showcases various neural network architectures and training techniques."
     )
 
