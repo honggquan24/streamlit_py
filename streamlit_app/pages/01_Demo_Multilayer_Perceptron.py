@@ -313,6 +313,8 @@ def main():
             </div>
         """, unsafe_allow_html=True)
     
+    st.markdown("", unsafe_allow_html=True)
+
     col1, col2, col3, col4, col5 = st.columns([3, 0.5, 3, 0.5, 3])
 
     with col1:
@@ -362,10 +364,10 @@ def main():
     
     
     # Generate data
-    col1, col2, col3 = st.columns([1,2,1])
+    col1, col2, col3 = st.columns([1.5,1,1.5])
     with col2:
         st.markdown("", unsafe_allow_html=True)
-        if st.button("Click here to generate new data", type="primary", width="stretch"):
+        if st.button("# Click here to generate new data", type="primary", width="stretch"):
             if 'X' in st.session_state:
                 del st.session_state.X
                 del st.session_state.y
@@ -436,7 +438,7 @@ def main():
         st.write(f"- Batch Size: {batch_size}")
         st.write(f"- Activation: {activation}")
     
-    col1, col2, col3 = st.columns([1,2,1])
+    col1, col2, col3 = st.columns([1.5,1,1.5])
     with col2:
         st.markdown("", unsafe_allow_html=True)
         # Training section
@@ -588,7 +590,7 @@ def main():
                     template="plotly_white",
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=250, r=250, t=64, b=40),
+                    margin=dict(l=200, r=200),
                     legend=dict(
                         orientation="h",
                         yanchor="bottom", y=1.02,
@@ -613,6 +615,7 @@ def main():
                     hoverlabel=dict(bgcolor="white", font_size=12),
                     colorway=["#1f77b4", "#e45756", "#2ca02c", "#9467bd", "#ff7f0e"]
                 )
+                    
 
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -672,11 +675,6 @@ def main():
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
-                
-                # Calculate and display R² score
-                from sklearn.metrics import r2_score
-                r2 = r2_score(y, y_pred_train)
-                st.info(f" R² Score: {r2:.4f}")
 
 if __name__ == "__main__":
     main()
