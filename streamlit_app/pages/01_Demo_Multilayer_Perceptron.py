@@ -12,42 +12,48 @@ import io
 import sys
 from pathlib import Path
 
+# Import neural network modules from the core directory
+root_path = Path.cwd().parent
+if str(root_path) not in sys.path:
+    sys.path.insert(0, str(root_path))
+
+from NeuralKit import *
+
 # Set page config
 st.set_page_config(
-    page_title="🧠 Neural Network Demo",
-    page_icon="🧠",
+    page_title="Multilayer Perceptron Demo",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # Custom CSS for better styling
 st.markdown("""
-<style>
-    .main-header {
-        font-size: 3rem;
-        color: #FF6B6B;
-        text-align: center;
-        margin-bottom: 2rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-    }
-    .sub-header {
-        font-size: 1.5rem;
-        color: #4ECDC4;
-        margin-bottom: 1rem;
-    }
-    .metric-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        margin: 0.5rem 0;
-    }
-    .stSelectbox label, .stSlider label {
-        color: #FF6B6B !important;
-        font-weight: bold;
-    }
-</style>
+    <style>
+        .main-header {
+            font-size: 3rem;
+            color: #FF6B6B;
+            text-align: center;
+            margin-bottom: 2rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .sub-header {
+            font-size: 1.5rem;
+            color: #4ECDC4;
+            margin-bottom: 1rem;
+        }
+        .metric-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 1rem;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+            margin: 0.5rem 0;
+        }
+        .stSelectbox label, .stSlider label {
+            color: #FF6B6B !important;
+            font-weight: bold;
+        }
+    </style>
 """, unsafe_allow_html=True)
 
 # Try to import your actual neural network modules
@@ -60,12 +66,12 @@ def load_nn_modules():
             sys.path.insert(0, str(root_path))
         
         # Import your actual modules
-        from core.network import NeuralNetwork
-        from core.layers import Linear, ReLULayer, SigmoidLayer, TanhLayer, SoftmaxCrossEntropyLoss
-        from core.optimizers import Adam, SGD, Momentum, RMSProp
-        from core.loss import mse_loss, mse_loss_derivative, cross_entropy_loss
-        from core.utils import batch_iterator
-        from core.data_generator import Spiral, Circle, Zone, GeneratePolynomialData
+        from NeuralKit.network import NeuralNetwork
+        from NeuralKit.layers import Linear, ReLULayer, SigmoidLayer, TanhLayer, SoftmaxCrossEntropyLoss
+        from NeuralKit.optimizers import Adam, SGD, Momentum, RMSProp
+        from NeuralKit.loss import mse_loss, mse_loss_derivative, cross_entropy_loss
+        from NeuralKit.utils import batch_iterator
+        from NeuralKit.data_generator import Spiral, Circle, Zone, GeneratePolynomialData
         
         return {
             'NeuralNetwork': NeuralNetwork,
@@ -300,56 +306,60 @@ def main():
     data_gen = DataGenerator(nn_modules)
     
     # Main title
-    st.markdown('<h1 class="main-header">🧠 Neural Network Demo</h1>', unsafe_allow_html=True)
-    st.markdown("### Built from scratch with customizable architecture and real-time visualization")
+    st.markdown('<h1 class="main-header">MLP Demo</h1>', unsafe_allow_html=True)
+    st.markdown("""
+            <div style="text-align: center;">
+                <h5>Built from scratch with customizable architecture and real-time visualization</h5>
+            </div>
+        """, unsafe_allow_html=True)
     
-    # Sidebar configuration
-    st.sidebar.markdown('<h2 class="sub-header">🔧 Configuration</h2>', unsafe_allow_html=True)
+    # configuration
+    st.markdown('<h2 class="sub-header"> Configuration</h2>', unsafe_allow_html=True)
     
     # Problem type selection
-    problem_type = st.sidebar.selectbox(
-        "🎯 Select Problem Type",
+    problem_type = st.selectbox(
+        "Select type of problem",
         ["Classification - Spiral", "Classification - Circles", "Classification - XOR", "Regression - Polynomial"]
     )
     
     # Data generation
-    st.sidebar.markdown("### 📊 Data Parameters")
+    st.markdown("### Data Parameters")
     
     if "Classification" in problem_type:
         if "XOR" in problem_type:
             n_samples = 4
-            st.sidebar.info("XOR problem has fixed 4 samples")
+            st.info("XOR problem has fixed 4 samples")
         else:
-            n_samples = st.sidebar.slider("Number of samples per class", 50, 500, 200, 50)
-            n_classes = st.sidebar.slider("Number of classes", 2, 5, 3)
+            n_samples = st.slider("Number of samples per class", 1, 500, 200)
+            n_classes = st.slider("Number of classes", 2, 5, 3)
     else:
-        n_samples = st.sidebar.slider("Number of samples", 100, 1000, 200, 50)
+        n_samples = st.slider("Number of samples", 100, 1000, 200)
     
     # Network architecture
-    st.sidebar.markdown("### 🏗️ Network Architecture")
+    st.markdown("### Network Architecture")
     
     if "XOR" in problem_type:
         hidden_sizes = [4]  # Fixed for XOR
-        st.sidebar.info("XOR uses fixed architecture: 2 → 4 → 1")
+        st.info("XOR uses fixed architecture: 2 → 4 → 1")
     else:
-        n_hidden_layers = st.sidebar.slider("Number of hidden layers", 1, 5, 2)
+        n_hidden_layers = st.slider("Number of hidden layers", 1, 5, 2)
         hidden_sizes = []
         for i in range(n_hidden_layers):
-            size = st.sidebar.slider(f"Hidden layer {i+1} size", 8, 512, 64)
+            size = st.slider(f"Hidden layer {i+1} size", 8, 512, 64)
             hidden_sizes.append(size)
     
-    activation = st.sidebar.selectbox("Activation function", ["ReLU", "Sigmoid", "Tanh"])
+    activation = st.selectbox("Activation function", ["ReLU", "Sigmoid", "Tanh"])
     
     # Training parameters
-    st.sidebar.markdown("### 🎛️ Training Parameters")
+    st.markdown("### Training Parameters")
     
-    optimizer_type = st.sidebar.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
-    learning_rate = st.sidebar.slider("Learning rate", 0.0001, 0.1, 0.001, format="%.4f")
-    epochs = st.sidebar.slider("Epochs", 10, 1000, 100)
-    batch_size = st.sidebar.slider("Batch size", 8, 256, 32) if not "XOR" in problem_type else 4
+    optimizer_type = st.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
+    learning_rate = st.slider("Learning rate", 0.0001, 0.1, 0.001, format="%.4f")
+    epochs = st.slider("Epochs", 10, 1000, 100)
+    batch_size = st.slider("Batch size", 8, 256, 32) if not "XOR" in problem_type else 4
     
     # Generate data
-    if st.sidebar.button("🔄 Generate New Data"):
+    if st.button("🔄 Generate New Data"):
         if 'X' in st.session_state:
             del st.session_state.X
             del st.session_state.y
