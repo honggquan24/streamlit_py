@@ -282,13 +282,12 @@ def train_model(model, optimizer, X, y, epochs, batch_size, problem_type, nn_mod
         if accuracies is not None:
             acc = epoch_correct / max(epoch_total, 1)
             accuracies.append(acc)
-            status_text.text(f"Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f}, Accuracy: {acc:.4f}")
-        else:
-            status_text.text(f"Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f}")
         
         # Update progress
         progress_bar.progress((epoch + 1) / epochs)
-        
+        if epoch == epochs - 1:
+            progress_bar.empty()
+
         # Allow for early stopping or UI updates
         if epoch % 10 == 0:
             time.sleep(0.01)  # Small delay to allow UI updates
@@ -307,25 +306,26 @@ def main():
     
     # Main title
     st.markdown('<h1 class="main-header">MLP Demo</h1>', unsafe_allow_html=True)
+    st.markdown("<br></br>", unsafe_allow_html=True)
     st.markdown("""
             <div style="text-align: center;">
-                <h5>Built from scratch with customizable architecture and real-time visualization</h5>
+                <h5>Description: Built from scratch with customizable architecture and real-time visualization</h5>
             </div>
         """, unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3, col4, col5 = st.columns([3, 0.5, 3, 0.5, 3])
 
     with col1:
         # configuration
-        st.markdown('<h2 class="sub-header"> Configuration</h2>', unsafe_allow_html=True)
+        st.markdown('<h3 class="sub-header"> Configuration</h3>', unsafe_allow_html=True)
         
         # Problem type selection
         problem_type = st.selectbox(
             "Select type of problem",
-            ["Classification - Spiral", "Classification - Circles", "Classification - XOR", "Regression - Polynomial"]
+            ["Classification - Spiral", "Classification - Circles", "Regression - Polynomial"]
         )
         # Data generation
-        st.markdown("### Data Parameters")
+        st.markdown('<h3 class="sub-header"> Data parameters</h3>', unsafe_allow_html=True) 
         
         if "Classification" in problem_type:
             if "XOR" in problem_type:
@@ -336,9 +336,9 @@ def main():
                 n_classes = st.slider("Number of classes", 2, 5, 3)
         else:
             n_samples = st.slider("Number of samples", 100, 1000, 200)
-    with col2:
+    with col3:
         # Network architecture
-        st.markdown("### Network Architecture")
+        st.markdown("<h3>Network architecture</h3>", unsafe_allow_html=True) 
         
         if "XOR" in problem_type:
             hidden_sizes = [4]  # Fixed for XOR
@@ -351,39 +351,45 @@ def main():
                 hidden_sizes.append(size)
         
         activation = st.selectbox("Activation function", ["ReLU", "Sigmoid", "Tanh"])
-    with col3:
+    with col5:
         # Training parameters
-        st.markdown("### Training Parameters")
+        st.markdown("<h3>Training parameters</h3>", unsafe_allow_html=True)
         
         optimizer_type = st.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
         learning_rate = st.slider("Learning rate", 0.0001, 0.1, 0.001, format="%.4f")
         epochs = st.slider("Epochs", 10, 1000, 100)
         batch_size = st.slider("Batch size", 8, 256, 32) if not "XOR" in problem_type else 4
     
-    # Generate data
-    if st.button("Click Here to generate New Data"):
-        if 'X' in st.session_state:
-            del st.session_state.X
-            del st.session_state.y
     
-    if 'X' not in st.session_state:
-        with st.spinner("Generating data..."):
-            if problem_type == "Classification - Spiral":
-                X, y = data_gen.spiral_data(n_samples, n_classes)
-            elif problem_type == "Classification - Circles":
-                X, y = data_gen.circle_data(n_samples, n_classes)
-            elif problem_type == "Classification - XOR":
-                X, y = data_gen.xor_data()
-            else:  # Regression
-                X, y = data_gen.polynomial_data(n_samples)
-            
-            st.session_state.X = X
-            st.session_state.y = y
+    # Generate data
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.markdown("", unsafe_allow_html=True)
+        if st.button("Click here to generate new data", type="primary", width="stretch"):
+            if 'X' in st.session_state:
+                del st.session_state.X
+                del st.session_state.y
+        
+        if 'X' not in st.session_state:
+            with st.spinner("Generating data..."):
+                if problem_type == "Classification - Spiral":
+                    X, y = data_gen.spiral_data(n_samples, n_classes)
+                elif problem_type == "Classification - Circles":
+                    X, y = data_gen.circle_data(n_samples, n_classes)
+                elif problem_type == "Classification - XOR":
+                    X, y = data_gen.xor_data()
+                else:  # Regression
+                    X, y = data_gen.polynomial_data(n_samples)
+                
+                st.session_state.X = X
+                st.session_state.y = y
     
     X, y = st.session_state.X, st.session_state.y
     
+    st.markdown("<br></br>", unsafe_allow_html=True)
+    
     # Main content area
-    col1, col2 = st.columns([1, 1])
+    col1, space, col2 = st.columns([6, 1, 4])
     
     with col1:
         st.markdown('<h3 class="sub-header">Data Visualization</h3>', unsafe_allow_html=True)
@@ -401,13 +407,10 @@ def main():
                 plot_bgcolor='rgba(0,0,0,0)'
             )
             st.plotly_chart(fig, use_container_width=True)
-        
-        # Data info
-        st.info(f"Dataset: {X.shape[0]} samples, {X.shape[1]} features")
     
     with col2:
         st.markdown('<h3 class="sub-header">Network Architecture</h3>', unsafe_allow_html=True)
-        
+        st.markdown('<br></br>', unsafe_allow_html=True)
         # Display network architecture
         arch_text = f"Input ({X.shape[1]})"
         for i, size in enumerate(hidden_sizes):
@@ -433,80 +436,92 @@ def main():
         st.write(f"- Batch Size: {batch_size}")
         st.write(f"- Activation: {activation}")
     
-    # Training section
-    if st.button("Start Training", type="primary"):
-        with st.spinner("Training neural network..."):
-            # Create model
-            model = nn_modules['NeuralNetwork']()
-            
-            # Add layers
-            prev_size = X.shape[1]
-            for hidden_size in hidden_sizes:
-                model.add_layer(nn_modules['Linear'](prev_size, hidden_size, init_type='he'))
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.markdown("", unsafe_allow_html=True)
+        # Training section
+        if st.button("Start Training", type="primary", width="stretch"):
+            with st.spinner("Training neural network..."):
+                # Create model
+                model = nn_modules['NeuralNetwork']()
                 
-                if activation == "ReLU":
-                    model.add_layer(nn_modules['ReLULayer']())
-                elif activation == "Sigmoid":
-                    model.add_layer(nn_modules['SigmoidLayer']())
-                else:  # Tanh
-                    model.add_layer(nn_modules['TanhLayer']())
+                # Add layers
+                prev_size = X.shape[1]
+                for hidden_size in hidden_sizes:
+                    model.add_layer(nn_modules['Linear'](prev_size, hidden_size, init_type='he'))
                     
-                prev_size = hidden_size
-            
-            # Output layer
-            model.add_layer(nn_modules['Linear'](prev_size, output_size))
-            
-            if "XOR" in problem_type:
-                model.add_layer(nn_modules['SigmoidLayer']())
-            
-            # Create optimizer
-            if optimizer_type == "Adam":
-                optimizer = nn_modules['Adam'](learning_rate)
-            elif optimizer_type == "SGD":
-                optimizer = nn_modules['SGD'](learning_rate)
-            elif optimizer_type == "Momentum":
-                optimizer = nn_modules['Momentum'](learning_rate)
-            else:  # RMSProp
-                optimizer = nn_modules['RMSProp'](learning_rate)
-            
-            # Train model
-            losses, accuracies = train_model(
-                model, optimizer, X, y, epochs, batch_size, problem_type, nn_modules
-            )
-            
-            # Store results in session state
-            st.session_state.training_complete = True
-            st.session_state.losses = losses
-            st.session_state.accuracies = accuracies
-            st.session_state.model = model
-            st.session_state.output_size = output_size
-            
-            st.success("🎉 Training completed!")
-    
+                    if activation == "ReLU":
+                        model.add_layer(nn_modules['ReLULayer']())
+                    elif activation == "Sigmoid":
+                        model.add_layer(nn_modules['SigmoidLayer']())
+                    else:  # Tanh
+                        model.add_layer(nn_modules['TanhLayer']())
+                        
+                    prev_size = hidden_size
+                
+                # Output layer
+                model.add_layer(nn_modules['Linear'](prev_size, output_size))
+                
+                if "XOR" in problem_type:
+                    model.add_layer(nn_modules['SigmoidLayer']())
+                
+                # Create optimizer
+                if optimizer_type == "Adam":
+                    optimizer = nn_modules['Adam'](learning_rate)
+                elif optimizer_type == "SGD":
+                    optimizer = nn_modules['SGD'](learning_rate)
+                elif optimizer_type == "Momentum":
+                    optimizer = nn_modules['Momentum'](learning_rate)
+                else:  # RMSProp
+                    optimizer = nn_modules['RMSProp'](learning_rate)
+                
+                # Train model
+                losses, accuracies = train_model(
+                    model, optimizer, X, y, epochs, batch_size, problem_type, nn_modules
+                )
+                
+                # Store results in session state
+                st.session_state.training_complete = True
+                st.session_state.losses = losses
+                st.session_state.accuracies = accuracies
+                st.session_state.model = model
+                st.session_state.output_size = output_size
+                
+                msg = st.empty()
+                msg.success("Training complete!")
+                time.sleep(2)   # Hiện trong 1 giây
+                msg.empty()     # Xóa message
+                
+
+    st.markdown("<br></br>", unsafe_allow_html=True)
     # Results section
     if hasattr(st.session_state, 'training_complete') and st.session_state.training_complete:
-        st.markdown('<h3 class="sub-header">📊 Training Results</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 class="sub-header">Training Results</h3>', unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
-        
+
+        # Final Loss
         with col1:
             final_loss = st.session_state.losses[-1]
-            st.markdown(f'<div class="metric-box"><h4>Final Loss</h4><h2>{final_loss:.4f}</h2></div>', 
-                       unsafe_allow_html=True)
-        
+            st.metric(label="Final Loss", value=f"{final_loss:.4f}")
+
+        # Final Accuracy hoặc Epochs
         with col2:
             if st.session_state.accuracies:
                 final_acc = st.session_state.accuracies[-1]
-                st.markdown(f'<div class="metric-box"><h4>Final Accuracy</h4><h2>{final_acc:.4f}</h2></div>', 
-                           unsafe_allow_html=True)
+                st.metric(label="Final Accuracy", value=f"{final_acc:.4f}")
             else:
-                st.markdown(f'<div class="metric-box"><h4>Epochs</h4><h2>{epochs}</h2></div>', 
-                           unsafe_allow_html=True)
-        
+                st.metric(label="Epochs", value=epochs)
+
+        # Parameters
         with col3:
-            total_params = sum(h * X.shape[1] for h in hidden_sizes[:1]) + sum(hidden_sizes[i] * hidden_sizes[i+1] for i in range(len(hidden_sizes)-1)) + hidden_sizes[-1] * st.session_state.output_size
-            st.markdown(f'<div class="metric-box"><h4>Parameters</h4><h2>{total_params}</h2></div>', 
-                       unsafe_allow_html=True)
+            total_params = (
+                sum(h * X.shape[1] for h in hidden_sizes[:1]) +
+                sum(hidden_sizes[i] * hidden_sizes[i+1] for i in range(len(hidden_sizes) - 1)) +
+                hidden_sizes[-1] * st.session_state.output_size
+            )
+            st.metric(label="Parameters", value=f"{total_params}")
+
         
         # Plot training history
         fig_history = plot_training_history(st.session_state.losses, st.session_state.accuracies)
@@ -514,7 +529,7 @@ def main():
         
         # Decision boundary visualization for 2D classification
         if X.shape[1] == 2 and "Classification" in problem_type:
-            st.markdown('<h3 class="sub-header">🎯 Decision Boundary</h3>', unsafe_allow_html=True)
+            st.markdown('<h3 class="sub-header">Decision Boundary</h3>', unsafe_allow_html=True)
             
             with st.spinner("Generating decision boundary..."):
                 # Create a mesh for decision boundary
@@ -563,20 +578,49 @@ def main():
                     ))
                 
                 fig.update_layout(
-                    title='Decision Boundary Visualization',
-                    xaxis_title='Feature 1',
-                    yaxis_title='Feature 2',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font=dict(size=12),
-                    showlegend=True
+                    autosize=True,   # cho phép co giãn theo container
+                    height=None,     # bỏ cố định px
+                    title=dict(
+                        text="Decision Boundary Visualization",
+                        x=0.5, xanchor="center", y=0.95,
+                        font=dict(size=18, family="Inter, Arial, sans-serif", color="#111")
+                    ),
+                    template="plotly_white",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(l=250, r=250, t=64, b=40),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom", y=1.02,
+                        xanchor="center", x=0.5,
+                        bgcolor="rgba(0,0,0,0)"
+                    ),
+                    font=dict(size=12, color="#222"),
+                    xaxis=dict(
+                        title="Feature 1",
+                        scaleanchor="y",   # scale x và y giữ đúng tỉ lệ
+                        scaleratio=1,
+                        showgrid=True, gridcolor="rgba(0,0,0,0.08)",
+                        zeroline=False, showline=True, linecolor="rgba(0,0,0,0.25)",
+                        mirror=True, ticks="outside", ticklen=6
+                    ),
+                    yaxis=dict(
+                        title="Feature 2",
+                        showgrid=True, gridcolor="rgba(0,0,0,0.08)",
+                        zeroline=False, showline=True, linecolor="rgba(0,0,0,0.25)",
+                        mirror=True, ticks="outside", ticklen=6
+                    ),
+                    hoverlabel=dict(bgcolor="white", font_size=12),
+                    colorway=["#1f77b4", "#e45756", "#2ca02c", "#9467bd", "#ff7f0e"]
                 )
-                
+
                 st.plotly_chart(fig, use_container_width=True)
+
+
         
         # Regression prediction visualization
         elif "Regression" in problem_type:
-            st.markdown('<h3 class="sub-header">📈 Model Predictions</h3>', unsafe_allow_html=True)
+            st.markdown('<h3 class="sub-header">Model Predictions</h3>', unsafe_allow_html=True)
             
             with st.spinner("Generating predictions..."):
                 # Generate smooth curve for predictions
@@ -632,41 +676,7 @@ def main():
                 # Calculate and display R² score
                 from sklearn.metrics import r2_score
                 r2 = r2_score(y, y_pred_train)
-                st.info(f"📊 R² Score: {r2:.4f}")
-        
-        # Model information section
-        st.markdown('<h3 class="sub-header">ℹ️ Model Information</h3>', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Architecture Details:**")
-            st.write(f"- Input features: {X.shape[1]}")
-            st.write(f"- Hidden layers: {len(hidden_sizes)}")
-            for i, size in enumerate(hidden_sizes):
-                st.write(f"  - Layer {i+1}: {size} neurons")
-            st.write(f"- Output neurons: {st.session_state.output_size}")
-            st.write(f"- Activation: {activation}")
-            st.write(f"- Total parameters: {total_params}")
-        
-        with col2:
-            st.markdown("**Training Details:**")
-            st.write(f"- Problem type: {problem_type}")
-            st.write(f"- Dataset size: {X.shape[0]} samples")
-            st.write(f"- Training epochs: {epochs}")
-            st.write(f"- Batch size: {batch_size}")
-            st.write(f"- Optimizer: {optimizer_type}")
-            st.write(f"- Learning rate: {learning_rate}")
-            st.write(f"- Final loss: {st.session_state.losses[-1]:.6f}")
-            if st.session_state.accuracies:
-                st.write(f"- Final accuracy: {st.session_state.accuracies[-1]:.4f}")
-    
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        "**Neural Network Demo** - Built from scratch with custom implementation. "
-        "This demo showcases various neural network architectures and training techniques."
-    )
+                st.info(f" R² Score: {r2:.4f}")
 
 if __name__ == "__main__":
     main()

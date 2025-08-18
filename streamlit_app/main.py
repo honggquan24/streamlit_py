@@ -35,13 +35,13 @@ profile_html = """
     <h5><i class="fas fa-address-book"></i> Get In Touch</h5>
     <div class="contact-item">
       <i class="fas fa-envelope"></i>
-      <a href="mailto:vohongquan6524@gmail.com" style="color:inherit;text-decoration:none">
-        22134012@student.hcmute.edu.vn
+      <a style="color:inherit;text-decoration:none">
+        vohongquan6524@gmail.com
       </a>
     </div>
     <div class="contact-item">
       <i class="fas fa-phone"></i>
-      <a href="tel:+84363645485" style="color:inherit;text-decoration:none">0363645485</a>
+      <a style="color:inherit;text-decoration:none">0363645485</a>
     </div>
     <div class="contact-item">
       <i class="fas fa-map-marker-alt"></i>
