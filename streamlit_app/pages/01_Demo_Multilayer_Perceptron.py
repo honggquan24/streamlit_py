@@ -208,7 +208,7 @@ def plot_training_history(losses, accuracies=None):
     )
     return fig
 
-def train_model(model, optimizer, X, y, epochs, batch_size, problem_type, nn_modules):
+def train_model(model, optimizer, X, y, epochs, batch_size, problem_type):
     """Train the model with real implementation"""
     losses = []
     accuracies = [] if "Classification" in problem_type else None
@@ -225,14 +225,8 @@ def train_model(model, optimizer, X, y, epochs, batch_size, problem_type, nn_mod
         epoch_total = 0
         batch_count = 0
         
-        # Use your actual batch_iterator if available
-        if nn_modules and 'batch_iterator' in nn_modules:
-            batch_iter = nn_modules['batch_iterator'](X, y, batch_size, shuffle=True)
-        else:
-            # Simple batch iteration fallback
-            indices = np.random.permutation(len(X))
-            batch_iter = [(X[indices[i:i+batch_size]], y[indices[i:i+batch_size]]) 
-                         for i in range(0, len(X), batch_size)]
+
+        batch_iter = batch_iterator(X, y, batch_size, shuffle=True)
         
         for X_batch, y_batch in batch_iter:
             model.zero_grad()
@@ -241,22 +235,14 @@ def train_model(model, optimizer, X, y, epochs, batch_size, problem_type, nn_mod
             if "Classification" in problem_type:
                 logits = model.forward(X_batch)
                 
-                if "XOR" in problem_type:
-                    # Binary classification
-                    loss = nn_modules['mse_loss'](logits, y_batch.reshape(-1, 1))
-                    grad = nn_modules['mse_loss_derivative'](logits, y_batch.reshape(-1, 1))
-                    # Accuracy calculation
-                    predictions = (logits > 0.5).astype(int).flatten()
-                    epoch_correct += np.sum(predictions == y_batch)
+                # Multi-class classification with softmax cross entropy
+                if nn_modules and 'SoftmaxCrossEntropyLoss' in nn_modules:
+                    loss_fn = nn_modules['SoftmaxCrossEntropyLoss']()
+                    loss = loss_fn.forward(logits, y_batch)
+                    grad = loss_fn.backward()
                 else:
-                    # Multi-class classification with softmax cross entropy
-                    if nn_modules and 'SoftmaxCrossEntropyLoss' in nn_modules:
-                        loss_fn = nn_modules['SoftmaxCrossEntropyLoss']()
-                        loss = loss_fn.forward(logits, y_batch)
-                        grad = loss_fn.backward()
-                    else:
-                        loss = nn_modules['cross_entropy_loss'](logits, y_batch)
-                        grad = 2 * (logits - y_batch) / len(y_batch)  # Simplified
+                    loss = nn_modules['cross_entropy_loss'](logits, y_batch)
+                    grad = 2 * (logits - y_batch) / len(y_batch)  # Simplified
                     
                     # Accuracy calculation
                     predictions = np.argmax(logits, axis=1)
@@ -295,14 +281,14 @@ def train_model(model, optimizer, X, y, epochs, batch_size, problem_type, nn_mod
     return losses, accuracies
 
 def main():
-    # Load neural network modules
+    # # Load neural network modules
     nn_modules = load_nn_modules()
     if nn_modules is None:
         st.warning("Using fallback implementations. Neural network training may not work properly.")
         return
     
     # Initialize data generator
-    data_gen = DataGenerator(nn_modules)
+    # data_gen = DataGenerator(nn_modules)
     
     # Main title
     st.markdown('<h1 class="main-header">MLP Demo</h1>', unsafe_allow_html=True)
@@ -315,7 +301,7 @@ def main():
     
     st.markdown("", unsafe_allow_html=True)
 
-    col1, col2, col3, col4, col5 = st.columns([3, 0.5, 3, 0.5, 3])
+    col1, space, col2, space, col3 = st.columns([3, 0.5, 3, 0.5, 3])
 
     with col1:
         # configuration
@@ -338,7 +324,7 @@ def main():
                 n_classes = st.slider("Number of classes", 2, 5, 3)
         else:
             n_samples = st.slider("Number of samples", 100, 1000, 200)
-    with col3:
+    with col2:
         # Network architecture
         st.markdown("<h3>Network architecture</h3>", unsafe_allow_html=True) 
         
@@ -353,7 +339,7 @@ def main():
                 hidden_sizes.append(size)
         
         activation = st.selectbox("Activation function", ["ReLU", "Sigmoid", "Tanh"])
-    with col5:
+    with col3:
         # Training parameters
         st.markdown("<h3>Training parameters</h3>", unsafe_allow_html=True)
         
@@ -375,13 +361,11 @@ def main():
         if 'X' not in st.session_state:
             with st.spinner("Generating data..."):
                 if problem_type == "Classification - Spiral":
-                    X, y = data_gen.spiral_data(n_samples, n_classes)
+                    X, y = SpiralDataset(n_samples, n_classes).generate()
                 elif problem_type == "Classification - Circles":
-                    X, y = data_gen.circle_data(n_samples, n_classes)
-                elif problem_type == "Classification - XOR":
-                    X, y = data_gen.xor_data()
+                    X, y = CircleDataset(n_samples, n_classes).generate()
                 else:  # Regression
-                    X, y = data_gen.polynomial_data(n_samples)
+                    X, y = PolynomialDataset(n_samples).generate()
                 
                 st.session_state.X = X
                 st.session_state.y = y
@@ -494,187 +478,6 @@ def main():
                 time.sleep(2)   # Hiện trong 1 giây
                 msg.empty()     # Xóa message
                 
-
-    st.markdown("<br></br>", unsafe_allow_html=True)
-    # Results section
-    if hasattr(st.session_state, 'training_complete') and st.session_state.training_complete:
-        st.markdown('<h3 class="sub-header">Training Results</h3>', unsafe_allow_html=True)
-        
-        col1, col2, col3 = st.columns(3)
-
-        # Final Loss
-        with col1:
-            final_loss = st.session_state.losses[-1]
-            st.metric(label="Final Loss", value=f"{final_loss:.4f}")
-
-        # Final Accuracy hoặc Epochs
-        with col2:
-            if st.session_state.accuracies:
-                final_acc = st.session_state.accuracies[-1]
-                st.metric(label="Final Accuracy", value=f"{final_acc:.4f}")
-            else:
-                st.metric(label="Epochs", value=epochs)
-
-        # Parameters
-        with col3:
-            total_params = (
-                sum(h * X.shape[1] for h in hidden_sizes[:1]) +
-                sum(hidden_sizes[i] * hidden_sizes[i+1] for i in range(len(hidden_sizes) - 1)) +
-                hidden_sizes[-1] * st.session_state.output_size
-            )
-            st.metric(label="Parameters", value=f"{total_params}")
-
-        
-        # Plot training history
-        fig_history = plot_training_history(st.session_state.losses, st.session_state.accuracies)
-        st.plotly_chart(fig_history, use_container_width=True)
-        
-        # Decision boundary visualization for 2D classification
-        if X.shape[1] == 2 and "Classification" in problem_type:
-            st.markdown('<h3 class="sub-header">Decision Boundary</h3>', unsafe_allow_html=True)
-            
-            with st.spinner("Generating decision boundary..."):
-                # Create a mesh for decision boundary
-                h = 0.02
-                x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
-                y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
-                xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                   np.arange(y_min, y_max, h))
-                
-                # Get predictions for decision boundary
-                mesh_points = np.c_[xx.ravel(), yy.ravel()]
-                st.session_state.model.eval()
-                Z_pred = st.session_state.model.forward(mesh_points)
-                
-                if "XOR" in problem_type:
-                    Z = (Z_pred > 0.5).astype(int).flatten()
-                else:
-                    Z = np.argmax(Z_pred, axis=1)
-                
-                Z = Z.reshape(xx.shape)
-                
-                # Create decision boundary plot
-                fig = go.Figure()
-                
-                # Add decision boundary
-                fig.add_trace(go.Contour(
-                    x=np.arange(x_min, x_max, h),
-                    y=np.arange(y_min, y_max, h),
-                    z=Z,
-                    showscale=False,
-                    opacity=0.3,
-                    line=dict(width=0),
-                    colorscale='Viridis'
-                ))
-                
-                # Add data points
-                colors = px.colors.qualitative.Set1[:len(np.unique(y))]
-                for i, class_val in enumerate(np.unique(y)):
-                    mask = y == class_val
-                    fig.add_trace(go.Scatter(
-                        x=X[mask, 0],
-                        y=X[mask, 1],
-                        mode='markers',
-                        name=f'Class {class_val}',
-                        marker=dict(color=colors[i], size=8, line=dict(width=2, color='white'))
-                    ))
-                
-                fig.update_layout(
-                    autosize=True,   # cho phép co giãn theo container
-                    height=None,     # bỏ cố định px
-                    title=dict(
-                        text="Decision Boundary Visualization",
-                        x=0.5, xanchor="center", y=0.95,
-                        font=dict(size=18, family="Inter, Arial, sans-serif", color="#111")
-                    ),
-                    template="plotly_white",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=200, r=200),
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom", y=1.02,
-                        xanchor="center", x=0.5,
-                        bgcolor="rgba(0,0,0,0)"
-                    ),
-                    font=dict(size=12, color="#222"),
-                    xaxis=dict(
-                        title="Feature 1",
-                        scaleanchor="y",   # scale x và y giữ đúng tỉ lệ
-                        scaleratio=1,
-                        showgrid=True, gridcolor="rgba(0,0,0,0.08)",
-                        zeroline=False, showline=True, linecolor="rgba(0,0,0,0.25)",
-                        mirror=True, ticks="outside", ticklen=6
-                    ),
-                    yaxis=dict(
-                        title="Feature 2",
-                        showgrid=True, gridcolor="rgba(0,0,0,0.08)",
-                        zeroline=False, showline=True, linecolor="rgba(0,0,0,0.25)",
-                        mirror=True, ticks="outside", ticklen=6
-                    ),
-                    hoverlabel=dict(bgcolor="white", font_size=12),
-                    colorway=["#1f77b4", "#e45756", "#2ca02c", "#9467bd", "#ff7f0e"]
-                )
-                    
-
-                st.plotly_chart(fig, use_container_width=True)
-
-
-        
-        # Regression prediction visualization
-        elif "Regression" in problem_type:
-            st.markdown('<h3 class="sub-header">Model Predictions</h3>', unsafe_allow_html=True)
-            
-            with st.spinner("Generating predictions..."):
-                # Generate smooth curve for predictions
-                x_smooth = np.linspace(X.min(), X.max(), 300).reshape(-1, 1)
-                st.session_state.model.eval()
-                y_pred_smooth = st.session_state.model.forward(x_smooth).flatten()
-                
-                # Get predictions for training data
-                y_pred_train = st.session_state.model.forward(X).flatten()
-                
-                # Create prediction plot
-                fig = go.Figure()
-                
-                # Add training data
-                fig.add_trace(go.Scatter(
-                    x=X.flatten(),
-                    y=y,
-                    mode='markers',
-                    name='Training Data',
-                    marker=dict(color='blue', size=8, opacity=0.7)
-                ))
-                
-                # Add smooth prediction curve
-                fig.add_trace(go.Scatter(
-                    x=x_smooth.flatten(),
-                    y=y_pred_smooth,
-                    mode='lines',
-                    name='Model Predictions',
-                    line=dict(color='red', width=3)
-                ))
-                
-                # Add training predictions
-                fig.add_trace(go.Scatter(
-                    x=X.flatten(),
-                    y=y_pred_train,
-                    mode='markers',
-                    name='Training Predictions',
-                    marker=dict(color='red', size=6, symbol='x')
-                ))
-                
-                fig.update_layout(
-                    title='Regression Model Predictions',
-                    xaxis_title='X',
-                    yaxis_title='y',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font=dict(size=12),
-                    showlegend=True
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
     main()

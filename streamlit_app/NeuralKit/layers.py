@@ -166,8 +166,6 @@ class Dropout(Layer):
     def set_training(self, training):
         self.training = training
 
-import numpy as np
-
 class BatchNorm1D(Layer):
     def __init__(self, num_features, momentum=0.1, eps=1e-5, affine=True,
                  gamma=1.0, beta=0.0):
