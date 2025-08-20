@@ -594,8 +594,15 @@ class Conv2D:
 
 class MaxPool2D:
     def __init__(self, pool_size=2, stride=None):
-        self.pool_size = pool_size if isinstance(pool_size, tuple) else (pool_size, pool_size)
-        self.stride = stride if stride is not None else self.pool_size
+        if not isinstance(pool_size, tuple):
+            pool_size = (int(pool_size), int(pool_size))
+        if stride is None:
+            stride = pool_size
+        elif not isinstance(stride, tuple):
+            stride = (int(stride), int(stride))
+
+        self.pool_size = pool_size
+        self.stride = stride
         self.input_cache = None
         self.mask_cache = None
     
@@ -606,8 +613,16 @@ class MaxPool2D:
         self.input_cache = x.copy()
         N, C, H, W = x.shape
         pool_h, pool_w = self.pool_size
-        stride_h, stride_w = self.stride if isinstance(self.stride, tuple) else (self.stride, self.stride)
+        stride_h, stride_w = self.stride 
         
+        if H < pool_h or W < pool_w:
+            raise ValueError(f"Input {(H, W)} smaller than pool {(pool_h, pool_w)}")
+
+        out_h = 1 + (H - pool_h)//stride_h
+        out_w = 1 + (W - pool_w)//stride_w
+        if out_h <= 0 or out_w <= 0:
+            raise ValueError(f"Invalid output size: {(out_h, out_w)}; check pool/stride")
+
         # Calculate output dimensions
         out_h = (H - pool_h) // stride_h + 1
         out_w = (W - pool_w) // stride_w + 1

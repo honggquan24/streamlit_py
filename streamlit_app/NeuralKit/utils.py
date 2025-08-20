@@ -305,7 +305,7 @@ def load_checkpoint(filepath, model_type=None):
 
     return model, optimizer
 
-def train_test_split(X, y, seed=42, train_size=0.8, test_size= 0.2, shuffle=True):
+def train_test_split(X, y, seed=42, train_size=0.8, shuffle=True):
     X = np.asarray(X)
     y = np.asarray(y)
     if len(X) != len(y):
@@ -317,7 +317,7 @@ def train_test_split(X, y, seed=42, train_size=0.8, test_size= 0.2, shuffle=True
     idx = np.arange(n)
     if shuffle:
         idx = rng.permutation(idx)
-    idx_train = rng.choice(n, int(0.8 * n), replace= False)
+    idx_train = rng.choice(n, int(train_size * n), replace= False)
 
     mask = np.zeros(n, dtype=bool)
     mask[idx_train] = True

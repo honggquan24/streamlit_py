@@ -6,7 +6,7 @@ from pathlib import Path
 import plotly.graph_objects as go   
 import plotly.express as px
 from plotly.subplots import make_subplots
-from tensorflow.keras.datasets import mnist, cifar10, fashion_mnist
+from tensorflow.keras.datasets import mnist, fashion_mnist
 import matplotlib.pyplot as plt
 
 root_path = Path.cwd().parent
@@ -28,7 +28,7 @@ class DatasetLoader:
     def __init__(self):
         self.datasets = {
             "MNIST": self.load_mnist,
-            "CIFAR-10": self.load_cifar10,
+            # "CIFAR-10": self.load_cifar10,
             "Fashion-MNIST": self.load_fashion_mnist
         }
 
@@ -45,17 +45,17 @@ class DatasetLoader:
             X_test, y_test = X_test[idx], y_test[idx]
         return (X_train, y_train), (X_test, y_test), 10, (1, 28, 28)
     
-    def load_cifar10(self, subset_size=None):
-        (X_train, y_train), (X_test, y_test) = cifar10.load_data()
-        X_train = (X_train.astype(np.float32) / 255.0).transpose(0, 3, 1, 2)
-        X_test  = (X_test.astype(np.float32) / 255.0).transpose(0, 3, 1, 2)
-        y_train = y_train.flatten(); y_test = y_test.flatten()
-        if subset_size:
-            idx = np.random.choice(len(X_train), subset_size, replace=False)
-            X_train, y_train = X_train[idx], y_train[idx]
-            idx = np.random.choice(len(X_test), max(1, subset_size//5), replace=False)
-            X_test, y_test = X_test[idx], y_test[idx]
-        return (X_train, y_train), (X_test, y_test), 10, (3, 32, 32)
+    # def load_cifar10(self, subset_size=None):
+    #     (X_train, y_train), (X_test, y_test) = cifar10.load_data()
+    #     X_train = (X_train.astype(np.float32) / 255.0).transpose(0, 3, 1, 2)
+    #     X_test  = (X_test.astype(np.float32) / 255.0).transpose(0, 3, 1, 2)
+    #     y_train = y_train.flatten(); y_test = y_test.flatten()
+    #     if subset_size:
+    #         idx = np.random.choice(len(X_train), subset_size, replace=False)
+    #         X_train, y_train = X_train[idx], y_train[idx]
+    #         idx = np.random.choice(len(X_test), max(1, subset_size//5), replace=False)
+    #         X_test, y_test = X_test[idx], y_test[idx]
+    #     return (X_train, y_train), (X_test, y_test), 10, (3, 32, 32)
     
     def load_fashion_mnist(self, subset_size=None):
         (X_train, y_train), (X_test, y_test) = fashion_mnist.load_data()
@@ -70,15 +70,51 @@ class DatasetLoader:
             X_test, y_test = X_test[idx], y_test[idx]
         return (X_train, y_train), (X_test, y_test), 10, (1, 28, 28)
 
-def visualize_sample_images(X, y, n_samples=8, dataset_name="Dataset"):
-    fig, axes = plt.subplots(2, 4, figsize=(12, 6)); axes = axes.ravel()
-    names = get_class_names(dataset_name); idxs = np.random.choice(len(X), n_samples, replace=False)
-    for i, idx in enumerate(idxs):
-        img, label = X[idx], y[idx]
-        if img.shape[0] == 1: img_disp, cmap = img[0], 'gray'
-        else: img_disp, cmap = img.transpose(1, 2, 0), None
-        axes[i].imshow(img_disp, cmap=cmap); axes[i].set_title(f'Class: {names[label] if names else label}'); axes[i].axis('off')
-    plt.tight_layout(); 
+def visualize_sample_images(X, y, n_samples=16, dataset_name="Dataset"):
+    # Lấy tên lớp
+    class_names = get_class_names(dataset_name)
+    
+    # Chọn ngẫu nhiên n_samples ảnh
+    indices = np.random.choice(len(X), size=n_samples, replace=False)
+    
+    # Tính layout: 4 cột, số hàng phụ thuộc n_samples
+    ncols = 4
+    nrows = (n_samples + ncols - 1) // ncols  # Làm tròn lên
+    figsize = (12, 3 * nrows)
+    
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+    axes = axes.flatten()
+
+    for i, idx in enumerate(indices):
+        img = X[idx]
+        label = y[idx]
+        
+        # Chuẩn hóa định dạng ảnh: CHW -> HWC nếu cần
+        if img.ndim == 3:
+            if img.shape[0] == 1:  # Ảnh xám: (1, H, W)
+                img_display = img[0]
+                cmap = 'gray'
+            elif img.shape[0] == 3:  # Ảnh màu: (3, H, W)
+                img_display = np.transpose(img, (1, 2, 0))  # → (H, W, 3)
+                cmap = None
+            else:
+                img_display = img  # Fallback
+                cmap = None
+        else:  # Giả định là (H, W) hoặc (H, W, C)
+            img_display = img
+            cmap = 'gray' if img.ndim == 2 else None
+
+        # Hiển thị
+        axes[i].imshow(img_display, cmap=cmap)
+        class_label = class_names[label] if class_names else label
+        axes[i].set_title(f"Class: {class_label}", fontsize=10)
+        axes[i].axis("off")
+
+    # Ẩn các subplot thừa (nếu có)
+    for i in range(n_samples, len(axes)):
+        axes[i].axis("off")
+    
+    plt.tight_layout()
     return fig
 
 def get_class_names(dataset_name):
@@ -110,19 +146,20 @@ def get_model_architecture_text(conv_cfgs, fc_cfgs, input_shape):
     lines, cur = [], input_shape
     lines.append(f"Input: {cur}")
     for i, c in enumerate(conv_cfgs):
-        lines.append(f"Conv2D-{i+1}: {cur[0]}→{c['out_channels']} (k={c['kernel_size']}, pad={c['padding']})")
+        lines.append(f"Conv2D {i+1}: {cur[0]}→{c['out_channels']} (k={c['kernel_size']}, pad={c['padding']})")
         h = calculate_conv_output_size(cur[1], c['kernel_size'], 1, c['padding'])
         w = calculate_conv_output_size(cur[2], c['kernel_size'], 1, c['padding'])
         cur = (c['out_channels'], h, w); lines.append(f"ReLU: {cur}")
-        if c.get('use_pooling', True):
-            p = c.get('pool_size', 2); lines.append(f"MaxPool2D: {cur}→({cur[0]}, {cur[1]//p}, {cur[2]//p})")
+        if c.get('use_max_pooling', True):
+            p = c.get('pooling_size', 2); lines.append(f"MaxPool2D: {cur}→({cur[0]}, {cur[1]//p}, {cur[2]//p})")
             cur = (cur[0], cur[1]//p, cur[2]//p)
-        if c.get('use_batchnorm', False): lines.append(f"BatchNorm2D: {cur}")
+        if c.get('use_batch_norm', False): lines.append(f"BatchNorm2D: {cur}")
         if c.get('dropout_rate', 0)>0: lines.append(f"Dropout({c['dropout_rate']}): {cur}")
     flat = cur[0]*cur[1]*cur[2]; lines.append(f"Flatten: {cur}→({flat},)")
     prev = flat
-    for i, f in enumerate(fc_cfgs[:-1]): lines += [f"Linear-{i+1}: {prev}→{f}", f"ReLU: ({f},)"]; prev = f
-    lines.append(f"Output: {prev}→{fc_cfgs[-1]}"); return lines
+    for i, f in enumerate(fc_cfgs[:-1]): lines += [f"Linear {i+1}: {prev}→{f}", f"ReLU: ({f},)"]; prev = f
+    lines.append(f"Output: {prev}→{fc_cfgs[-1]}"); 
+    return lines
 
 # ===================== Training =====================
 def train_cnn_model(model, optimizer, loss_fn, X_train, y_train, X_val, y_val, epochs, batch_size):
@@ -149,72 +186,108 @@ def train_cnn_model(model, optimizer, loss_fn, X_train, y_train, X_val, y_val, e
         val_acc = v_correct / max(v_total, 1); val_accs.append(val_acc); model.train()
 
         progress_bar.progress((epoch+1)/epochs)
-        status_text.text(f"Epoch {epoch+1}/{epochs} | Loss {avg_loss:.4f} | Train Acc {train_acc:.3f} | Val Acc {val_acc:.3f}")
-        if epoch % 5 == 0 or epoch == epochs-1:
-            loss_chart.plotly_chart(plot_training_history(train_losses, train_accs, val_accs), use_container_width=True)
+        status_text.text(f"Epoch {epoch+1}/{epochs} | Loss {avg_loss:.4f} | Train Acc {train_acc:.3f} | Val Acc {val_acc:.3f}") 
         time.sleep(0.01)
     progress_bar.empty(); status_text.empty(); return train_losses, train_accs, val_accs
 
 # ===================== App =====================
+st.session_state.setdefault("run_id", 0)
 def main():
     data_loader = DatasetLoader()
 
-    st.markdown('<h1 class="main-header">CNN Demo</h1>', unsafe_allow_html=True)
-    st.markdown("<div style='text-align:center'><h5>Convolutional Neural Network built from scratch with real-time training visualization</h5></div>", unsafe_allow_html=True)
-    st.markdown("")
+    st.markdown("""
+            <div style="text-align: center;">
+                <h1>CNN Demo</h1>
+            </div>
+        """, unsafe_allow_html=True)
+    st.markdown("<br></br>", unsafe_allow_html=True)
+
+    st.markdown("""
+            <div style="text-align: center;">
+                <h5>Description: Convolutional Neural Network built from scratch with real-time training visualization</h5>
+            </div>
+        """, unsafe_allow_html=True)
+    st.markdown("", unsafe_allow_html=True)
+
 
     col1, sp1, col2, sp2, col3 = st.columns([3, .5, 3, .5, 3])
     with col1:
-        st.markdown('<h3 class="sub-header">Dataset Configuration</h3>', unsafe_allow_html=True)
-        dataset_name = st.selectbox("Select Dataset", ["MNIST", "CIFAR-10", "Fashion-MNIST"])
-        subset_size = st.slider("Training samples (for faster training)", 100, 10000, 2000, step=100)
-        train_val_split = st.slider("Train/Validation split", 0.1, 0.3, 0.2)
+        st.markdown('<h3>Dataset Configuration</h3>', unsafe_allow_html=True)
+        dataset_name = st.selectbox("Select Dataset", ["MNIST", "Fashion-MNIST"])
+        subset_size = st.slider("Training samples", 100, 10000, 1000, step=100)
+        train_val_split = st.slider("Train split", 0.0, 1.0, 0.8)
     with col2:
-        st.markdown('<h3 class="sub-header">CNN Architecture</h3>', unsafe_allow_html=True)
+        st.markdown('<h3>CNN Architecture</h3>', unsafe_allow_html=True)
         n_conv_layers = st.slider("Number of conv layers", 1, 4, 2)
         conv_configs = []
         for i in range(n_conv_layers):
-            with st.expander(f"Conv Layer {i+1}", expanded=(i==0)):
-                in_ch = 3 if (i==0 and dataset_name=="CIFAR-10") else (1 if i==0 else conv_configs[i-1]['out_channels'])
-                out_ch = st.slider("Output channels", 8, 128, 16*(2**i), key=f"conv_{i}_out")
-                ksize  = st.selectbox("Kernel size", [3,5], key=f"conv_{i}_k")
-                pad    = st.selectbox("Padding", [0,1,2], index=1, key=f"conv_{i}_pad")
-                use_pool = st.checkbox("Use MaxPool", value=True, key=f"conv_{i}_pool")
-                pool_sz  = 2 if use_pool else 1
-                use_bn   = st.checkbox("Use BatchNorm", value=False, key=f"conv_{i}_bn")
-                drop     = st.slider("Dropout rate", 0.0, 0.5, 0.0, key=f"conv_{i}_drop")
+            with st.expander(f"Conv Layer {i+1}"):
+                # Input channel 
+                if i == 0: 
+                    in_channel = 1
+                else:
+                    in_channel = conv_configs[i-1]['out_channels']
+
+                # Kernel size
+                kernel_size = st.selectbox("Kernel size", [3, 5], key= f"conv_{i}_k")
+
+                # Padding 
+                padding = st.selectbox("Padding", [0, 1, 2], key= f"conv_{i}_pad")
+
+                # Max pooling 
+                use_max_pooling = st.checkbox("Use max pooling", value= True, key= f"conv_{i}_pool")
+                pooling_size = 2 if use_max_pooling else 1
+
+                # Batch normalization
+                use_batch_norm = st.checkbox("Use batch norm", value= True, key= f"conv_{i}_bn")
+
+                # Dropout
+                dropout_rate = st.slider("Dropout rate", 0.0, 0.5, 0.0, key= f"conv_{i}_d")
+                
+                # Output channel layers slider 
+                output_channels = st.slider("Output channels", 8, 128, 16, key= f"conv_{i}_out")
+
+                # Add attribute in convolutional configuration
                 conv_configs.append({
-                    'in_channels': in_ch, 'out_channels': out_ch,
-                    'kernel_size': ksize, 'padding': pad,
-                    'use_pooling': use_pool, 'pool_size': pool_sz,
-                    'use_batchnorm': use_bn, 'dropout_rate': drop
+                    "in_channels": in_channel,
+                    "out_channels": output_channels,
+                    "kernel_size": kernel_size, 
+                    "padding": padding, 
+                    "use_max_pooling": use_max_pooling,
+                    "pooling_size": pooling_size,
+                    "use_batch_norm": use_batch_norm,
+                    "dropout_rate": dropout_rate, 
                 })
-        n_fc_layers = st.slider("Number of FC layers", 1, 3, 2)
+
+        # FC in last layers
+        num_fc_layers = st.slider("Number of Fully Connected layers", 1, 5, 2)
+        # Save layers atributte in FC configuation
         fc_configs = []
-        for i in range(n_fc_layers-1):
-            fc_configs.append(st.slider(f"FC layer {i+1} size", 32, 512, 128, key=f"fc_{i}"))
+        for i in range(num_fc_layers-1):
+            fc_configs.append(st.slider(f"FC layer {i+1} size", 32, 512, 32))
+        # last layers append 10 classes 
         fc_configs.append(10)  # 10 classes
+
     with col3:
-        st.markdown('<h3 class="sub-header">Training Parameters</h3>', unsafe_allow_html=True)
-        opt_name = st.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
-        lr = st.slider("Learning rate", 0.0001, 0.01, 0.001, format="%.4f")
-        epochs = st.slider("Epochs", 1, 50, 5)
+        st.markdown('<h3>Training Parameters</h3>', unsafe_allow_html=True)
+        lr = st.slider("Learning rate", 0.0001, 0.01, 0.001, format="%.3f")
+        epochs = st.slider("Epochs", 1, 10, 1)
         batch_size = st.slider("Batch size", 16, 128, 32)
-        st.markdown("### Model Summary")
-        st.info(f"Dataset: {dataset_name}\nTraining samples: {subset_size}\nConv layers: {n_conv_layers}\nFC layers: {n_fc_layers}")
+        opt_name = st.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
 
     # Load dataset
     c1, c2, c3 = st.columns([1.5, 1, 1.5])
     with c2:
         if st.button("Load Dataset", type="primary", use_container_width=True):
-            if 'dataset_loaded' in st.session_state: del st.session_state['dataset_loaded']
+            if 'dataset_loaded' in st.session_state:
+                del st.session_state['dataset_loaded']
         if 'dataset_loaded' not in st.session_state:
             with st.spinner(f"Loading {dataset_name} dataset..."):
-                (Xtr, ytr), (Xte, yte), n_classes, input_shape = data_loader.datasets[dataset_name](subset_size)
-                Xtr, Xval, ytr, yval = train_test_split(Xtr, ytr, test_size=train_val_split)
-                st.session_state.X_train, st.session_state.y_train = Xtr, ytr
+                (X_tr, y_tr), (X_te, y_te), n_classes, input_shape = data_loader.datasets[dataset_name](subset_size)
+                X_tr, Xval, y_tr, yval = train_test_split(X_tr, y_tr, train_size=train_val_split)
+                st.session_state.X_train, st.session_state.y_train = X_tr, y_tr
                 st.session_state.X_val,   st.session_state.y_val   = Xval, yval
-                st.session_state.X_test,  st.session_state.y_test  = Xte, yte
+                st.session_state.X_test,  st.session_state.y_test  = X_te, y_te
                 st.session_state.input_shape = input_shape
                 st.session_state.dataset_name = dataset_name
                 st.session_state.dataset_loaded = True
@@ -226,47 +299,83 @@ def main():
         input_shape      = st.session_state.input_shape
         dataset_name     = st.session_state.dataset_name
 
+        st.markdown('<h3>Model Architecture</h3>', unsafe_allow_html=True)
+        arch_text = get_model_architecture_text(conv_configs, fc_configs, input_shape)
+        with st.expander("Show model architecture"):
+            for block in arch_text:
+                st.code(block)
+
         st.markdown("<br>", unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
+        c1, sp, c2 = st.columns([6, 0.5, 4])
         with c1:
-            st.markdown('<h3 class="sub-header">Dataset Overview</h3>', unsafe_allow_html=True)
+            st.markdown('<h3>Dataset Overview</h3>', unsafe_allow_html=True)
+
+            # Plot the bar chart to check distribution
+            # Counting unique value
+            unique, cnt = np.unique(y_train, return_counts= True)
+            st.plotly_chart(
+                px.bar(
+                    x= [str(i) for i in unique],
+                    y= cnt,
+                    title= "Class distribution",
+                    labels= {
+                        'x': 'Class',
+                        'y': 'Count',
+                    }
+                ), use_container_width= True, key= "bar_chart"
+            )
+
             st.write(f"**Training**: {len(X_train)} | **Validation**: {len(X_val)} | **Test**: {len(X_test)}")
             st.write(f"**Input shape**: {input_shape} | **Classes**: {len(np.unique(y_train))}")
-            u, cnt = np.unique(y_train, return_counts=True)
-            st.plotly_chart(px.bar(x=[str(i) for i in u], y=cnt, title="Class Distribution",
-                                   labels={'x':'Class','y':'Count'}, template="plotly_white"),
-                            use_container_width=True)
-        with c2:
-            st.markdown('<h3 class="sub-header">Sample Images</h3>', unsafe_allow_html=True)
-            st.pyplot(visualize_sample_images(X_train, y_train, 8, dataset_name))
 
-        st.markdown('<h3 class="sub-header">Model Architecture</h3>', unsafe_allow_html=True)
-        arch_text = get_model_architecture_text(conv_configs, fc_configs, input_shape)
-        a1, a2 = st.columns(2)
-        with a1: st.code("\n".join(arch_text[:len(arch_text)//2]))
-        with a2: st.code("\n".join(arch_text[len(arch_text)//2:]))
+        with c2:
+            st.markdown('<h3>Sample Images</h3>', unsafe_allow_html=True)
+            st.markdown('<br>', unsafe_allow_html= True)
+
+            st.pyplot(visualize_sample_images(X_train, y_train, 16, dataset_name))
 
         b1, b2, b3 = st.columns([1.5, 1, 1.5])
         with b2:
             if st.button("Start Training", type="primary", use_container_width=True):
+                st.session_state.run_id += 1
+
                 with st.spinner("Building and training CNN..."):
                     # Build model
                     model = CNN()
                     for cfg in conv_configs:
-                        model.add_layer(Conv2D(cfg['in_channels'], cfg['out_channels'], cfg['kernel_size'], padding=cfg['padding']))
+                        model.add_layer(
+                            Conv2D(
+                                cfg['in_channels'],
+                                cfg['out_channels'], 
+                                cfg['kernel_size'], 
+                                padding=cfg['padding']
+                        ))
                         model.add_layer(ReLULayer())
-                        if cfg['use_pooling']:   model.add_layer(MaxPool2D(pool_size=cfg['pool_size']))
-                        if cfg['use_batchnorm']: model.add_layer(BatchNorm2D(cfg['out_channels']))
-                        if cfg['dropout_rate']>0: model.add_layer(Dropout(cfg['dropout_rate']))
+                        if cfg['use_max_pooling']:   
+                            model.add_layer(MaxPool2D(pool_size=cfg['pooling_size']))
+                        if cfg['use_batch_norm']: 
+                            model.add_layer(BatchNorm2D(cfg['out_channels']))
+                        if cfg['dropout_rate']>0: 
+                            model.add_layer(Dropout(cfg['dropout_rate']))
                     model.add_layer(Flatten())
 
                     # compute flatten size
                     cur = input_shape
                     for cfg in conv_configs:
-                        h = calculate_conv_output_size(cur[1], cfg['kernel_size'], 1, cfg['padding'])
-                        w = calculate_conv_output_size(cur[2], cfg['kernel_size'], 1, cfg['padding'])
+                        h = calculate_conv_output_size(
+                            cur[1], 
+                            cfg['kernel_size'], 
+                            1, 
+                            cfg['padding']
+                        )
+                        w = calculate_conv_output_size(
+                            cur[2], 
+                            cfg['kernel_size'], 
+                            1, 
+                            cfg['padding']
+                        )
                         cur = (cfg['out_channels'], h, w)
-                        if cfg['use_pooling']: cur = (cur[0], cur[1]//cfg['pool_size'], cur[2]//cfg['pool_size'])
+                        if cfg['use_max_pooling']: cur = (cur[0], cur[1]//cfg['pooling_size'], cur[2]//cfg['pooling_size'])
                     flat = cur[0]*cur[1]*cur[2]
 
                     prev = flat
@@ -274,29 +383,48 @@ def main():
                         model.add_layer(Linear(prev, f)); model.add_layer(ReLULayer()); prev = f
                     model.add_layer(Linear(prev, fc_configs[-1]))  # logits
 
-                    # Optimizer
-                    if opt_name == "Adam": optimizer = Adam(lr)
-                    elif opt_name == "SGD": optimizer = SGD(lr)
-                    elif opt_name == "Momentum": optimizer = Momentum(lr)
-                    else: optimizer = RMSProp(lr)
+                    if "model" not in st.session_state:
+                        st.session_state.model = model
+
+                    # optimizer
+                    if opt_name == "Adam": 
+                        optimizer = Adam(lr)
+                    elif opt_name == "SGD": 
+                        optimizer = SGD(lr)
+                    elif opt_name == "Momentum": 
+                        optimizer = Momentum(lr)
+                    else: 
+                        optimizer = RMSProp(lr)
+
+                    if "optimizer" not in st.session_state:
+                        st.session_state.optimizer = optimizer
 
                     loss_fn = SoftmaxCrossEntropyLoss()
                     st.success("Model created successfully! Starting training...")
 
-                st.markdown('<h3 class="sub-header">Training Progress</h3>', unsafe_allow_html=True)
-                train_losses, train_accs, val_accs = train_cnn_model(
-                    model, optimizer, loss_fn, X_train, y_train, X_val, y_val, epochs, batch_size
-                )
+                    if "loss_fn" not in st.session_state:
+                        st.session_state.loss_fn = loss_fn
 
-                # Final charts
-                st.plotly_chart(plot_training_history(train_losses, train_accs, val_accs), use_container_width=True)
+        model = st.session_state.get('model', None)
+        optimizer = st.session_state.get('optimizer', None)
+        loss_fn = st.session_state.get('loss_fn', None)
+        
+        if model is not None:
+            st.markdown('<h3>Training Progress</h3>', unsafe_allow_html=True)
+            train_losses, train_accs, val_accs = train_cnn_model(
+                model, optimizer, loss_fn, X_train, y_train, X_val, y_val, epochs, batch_size
+            )
 
-                # Evaluate on test set
-                model.eval(); t_correct = 0; t_total = 0
-                for Xb, yb in batch_iterator(X_test, y_test, batch_size, shuffle=False):
-                    logits = model.forward(Xb); t_correct += np.sum(np.argmax(logits, 1) == yb); t_total += len(yb)
-                test_acc = t_correct / max(t_total, 1)
-                st.success(f"Test Accuracy: **{test_acc:.3f}**")
+
+            # Final charts
+            st.plotly_chart(plot_training_history(train_losses, train_accs, val_accs), use_container_width=True, key="loss_final")
+
+            # Evaluate on test set
+            model.eval(); t_correct = 0; t_total = 0
+            for Xb, yb in batch_iterator(X_test, y_test, batch_size, shuffle=False):
+                logits = model.forward(Xb); t_correct += np.sum(np.argmax(logits, 1) == yb); t_total += len(yb)
+            test_acc = t_correct / max(t_total, 1)
+            st.success(f"Test Accuracy: **{test_acc:.3f}**")
 
 if __name__ == "__main__":
     main()

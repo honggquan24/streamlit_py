@@ -411,7 +411,7 @@ def render_training_results(
 def main():
     st.markdown("""
             <div style="text-align: center;">
-                <h1>Demo Multilayer Perceptron</h1>
+                <h1>Multilayer Perceptron Demo</h1>
             </div>
         """, unsafe_allow_html=True)
     st.markdown("<br></br>", unsafe_allow_html=True)
