@@ -283,7 +283,6 @@ def save_checkpoint(model, optimizer, file_path):
     with open(file_path, 'wb') as f:
         pickle.dump(data, f)  # Write serialized data to file
 
-
 def load_checkpoint(filepath, model_type=None):
     # Load a saved checkpoint containing model and optimizer state
     with open(filepath, 'rb') as f:
@@ -305,4 +304,26 @@ def load_checkpoint(filepath, model_type=None):
         raise ValueError(f"Unsupported model type: {model_type}")
 
     return model, optimizer
- 
+
+def train_test_split(X, y, seed=42, train_size=0.8, test_size= 0.2, shuffle=True):
+    X = np.asarray(X)
+    y = np.asarray(y)
+    if len(X) != len(y):
+        raise ValueError("X and y must have the same length.")
+
+    n = len(X)
+    rng = np.random.default_rng(seed)
+
+    idx = np.arange(n)
+    if shuffle:
+        idx = rng.permutation(idx)
+    idx_train = rng.choice(n, int(0.8 * n), replace= False)
+
+    mask = np.zeros(n, dtype=bool)
+    mask[idx_train] = True
+    X_train, X_test = X[mask], X[~mask]
+    y_train, y_test = y[mask], y[~mask]
+
+    return X_train, X_test, y_train, y_test
+
+

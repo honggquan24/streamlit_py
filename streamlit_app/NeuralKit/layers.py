@@ -2,9 +2,12 @@ import numpy as np
 from .activations import *
 from .loss import *
 
-class Layer:
-    # Base class for layers
+"""This module contains various layer classes used in neural networks.
+These layers can be used to build architectures by stacking them together.
+Each layer implements forward and backward methods for training and inference."""
 
+# Base class for all layers ===========================================================================
+class Layer:
     def forward(self, x):
         raise NotImplementedError  # Must override in subclass
 
@@ -17,9 +20,8 @@ class Layer:
     def zero_grad(self):
         pass  # Only layers with grads need to override
 
+# Dense / Fully connected layer ========================================================================
 class Linear(Layer):
-    # Dense / Fully connected layer
-
     def __init__(self, input_size, output_size, init_type= 'xavier', bias= True):
         self.input_size =input_size
         self.output_size = output_size
@@ -80,6 +82,7 @@ class Linear(Layer):
         if self.bias_flag:
             self.bias_grad = np.zeros_like(self.bias_grad)
 
+# Base Activation layer ===============================================================================
 class Activation(Layer):
     def __init__(self, activation_function, derivative_function):
         self.activation_function = activation_function
@@ -112,6 +115,7 @@ class LeakyReLULayer(Activation):
             lambda x: leaky_relu_derivative(x, alpha)
         )
 
+# Softmax layer ===============================================================================
 class SoftmaxLayer(Activation):
     def __init__(self):
         self.output_cache = None
@@ -145,6 +149,57 @@ class SoftmaxLayer(Activation):
             grad_input[i] = np.dot(jacobian, grad_output[i])
         return grad_input
 
+class SoftmaxCrossEntropyLoss:
+    def __init__(self):
+        self.cache = None  
+
+    def forward(self, logits, targets):
+        N = logits.shape[0]  # Number of samples
+
+        # Numerically stable softmax 
+        # Shift logits by max for stability: exp(x - max) avoids overflow
+        logits_shifted = logits - np.max(logits, axis=1, keepdims=True)
+        exp_logits = np.exp(logits_shifted)
+        probs = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)  # (N, C)
+
+        # Compute cross-entropy loss 
+        # Clip probabilities to prevent log(0)
+        probs_clipped = np.clip(probs, 1e-15, 1.0 - 1e-15)
+
+        if targets.ndim == 1:  # Class indices
+            # Extract log probability of true class
+            log_probs = -np.log(probs_clipped[np.arange(N), targets])  # (N,)
+        else:  # One-hot encoded
+            # -sum(y * log(p)) for each sample
+            log_probs = -np.sum(targets * np.log(probs_clipped), axis=1)  # (N,)
+
+        loss = np.mean(log_probs)  # Average over batch
+
+        #  Cache for backward pass 
+        self.cache = (probs, targets)
+        return loss
+
+    def backward(self):
+        assert self.cache is not None, "Must call forward() before backward()"
+        probs, targets = self.cache
+        N = probs.shape[0]
+
+        # Gradient: (probs - targets) / N
+        # But targets may be class indices or one-hot
+        if targets.ndim == 1:
+            # Convert class indices to one-hot for gradient computation
+            grad = probs.copy()  # (N, C)
+            grad[np.arange(N), targets] -= 1  # p_i - 1 for correct class
+        else:
+            grad = probs - targets  # (N, C)
+
+        # Normalize by batch size because loss was averaged
+        return grad / N
+
+    def __call__(self, logits, targets):
+        return self.forward(logits, targets)
+
+# Dropout layer =========================================================================================
 class Dropout(Layer):
     def __init__(self, dropout_rate= 0.5):
         self.dropout_rate = dropout_rate
@@ -166,6 +221,26 @@ class Dropout(Layer):
     def set_training(self, training):
         self.training = training
 
+# Flatten layer =========================================================================================
+class Flatten:
+    # Flatten layer to convert 4D tensor to 2D
+    def __init__(self):
+        self.input_shape = None
+        
+    def forward(self, x):
+        self.input_shape = x.shape
+        return x.reshape(x.shape[0], -1)
+    
+    def backward(self, grad_output):
+        return grad_output.reshape(self.input_shape)
+    
+    def update_params(self, optimizer):
+        pass
+    
+    def zero_grad(self):
+        pass
+
+# Batch Normalization layer ============================================================================
 class BatchNorm1D(Layer):
     def __init__(self, num_features, momentum=0.1, eps=1e-5, affine=True,
                  gamma=1.0, beta=0.0):
@@ -266,53 +341,329 @@ class BatchNorm1D(Layer):
     def set_training(self, training):
         self.training = training
 
-class SoftmaxCrossEntropyLoss:
-    
-    def __init__(self):
-        self.cache = None  
+class BatchNorm2D(Layer):
+    # Batch normalization for 2d feature maps: N, C, H, W
+    def __init__(self, num_channels, eps= 1e-15, momentum= 0.1):
+        self.num_channels = num_channels
+        self.momentum = momentum
+        self.eps = eps
 
-    def forward(self, logits, targets):
-        N = logits.shape[0]  # Number of samples
+        # Learnable parameters per channel
+        self.gamma = np.ones(num_channels)
+        self.beta = np.zeros(num_channels)
 
-        # Numerically stable softmax 
-        # Shift logits by max for stability: exp(x - max) avoids overflow
-        logits_shifted = logits - np.max(logits, axis=1, keepdims=True)
-        exp_logits = np.exp(logits_shifted)
-        probs = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)  # (N, C)
+        # Running statistic per channel 
+        self.running_mean = np.zeros(num_channels)
+        self.running_var = np.ones(num_channels)
 
-        # Compute cross-entropy loss 
-        # Clip probabilities to prevent log(0)
-        probs_clipped = np.clip(probs, 1e-15, 1.0 - 1e-15)
+        # Gadient
+        self.gamma_grad = np.zeros_like(self.gamma)
+        self.beta_grad = np.zeros_like(self.beta)
 
-        if targets.ndim == 1:  # Class indices
-            # Extract log probability of true class
-            log_probs = -np.log(probs_clipped[np.arange(N), targets])  # (N,)
-        else:  # One-hot encoded
-            # -sum(y * log(p)) for each sample
-            log_probs = -np.sum(targets * np.log(probs_clipped), axis=1)  # (N,)
+        # Cache for backward pass
+        self.input_cache = None
+        self.norm_cache = None
+        self.var_cache = None
+        self.training = True
 
-        loss = np.mean(log_probs)  # Average over batch
+    def forward(self, x):
+        # Check the shape of x
+        assert (x.ndim == 4 and x.shape[1] == self.num_channels), "BatchNorm2D expects input of shape (N, C, H, W)"
 
-        #  Cache for backward pass 
-        self.cache = (probs, targets)
-        return loss
+        if self.training:
+            axes = (0, 2, 3) # over N, H, W (per-channel stats)
+            batch_mean = np.mean(x, axis= axes)
+            batch_var = np.var(x, axis= axes)
 
-    def backward(self):
-        assert self.cache is not None, "Must call forward() before backward()"
-        probs, targets = self.cache
-        N = probs.shape[0]
+            # Update running stats
+            self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * batch_mean
+            self.running_var = (1 - self.momentum) * self.running_var + self.momentum * batch_var
 
-        # Gradient: (probs - targets) / N
-        # But targets may be class indices or one-hot
-        if targets.ndim == 1:
-            # Convert class indices to one-hot for gradient computation
-            grad = probs.copy()  # (N, C)
-            grad[np.arange(N), targets] -= 1  # p_i - 1 for correct class
+            # Normalize
+            denom = np.sqrt(batch_var + self.eps)
+            x_hat = (x - batch_mean[None, :, None, None]) / denom[None, :, None, None]
+
+            # Cache for backward
+            self.input_cache = x.copy()
+            self.norm_cache = x_hat.copy()
+            self.var_cache = batch_var.copy()
         else:
-            grad = probs - targets  # (N, C)
+            denom = np.sqrt(self.running_var + self.eps)
+            x_hat = (x - self.running_mean[None, :, None, None]) / denom[None, :, None, None]
+        return self.gamma[None, :, None, None] * x_hat + self.beta[None, :, None, None]
+    
+    def backward(self, grad_output):
+        # grad_output: (N, C, H, W)
+        if not self.training:
+            # During eval, treat BN as affine with fixed stats
+            return grad_output * (self.gamma[None, :, None, None] / np.sqrt(self.running_var[None, :, None, None] + self.eps))
+        x = self.input_cache
+        x_hat = self.norm_cache
+        var = self.var_cache
 
-        # Normalize by batch size because loss was averaged
-        return grad / N
+        N, C, H, W = x.shape
+        axes = (0, 2, 3)
 
-    def __call__(self, logits, targets):
-        return self.forward(logits, targets)
+        m = N * H * W 
+
+        # Gradients for gamma and beta
+        self.beta_grad += np.sum(grad_output, axis= axes)
+        self.gamma_grad += np.sum(grad_output * x_hat, axis= axes)
+
+        # Gradient for normalization
+        grad_norm = grad_output * self.gamma[None, :, None, None]
+        std_inv = 1.0 / np.sqrt(var + self.eps)
+        std_inv_b = std_inv[None, :, None, None]
+
+        mu = np.mean(x, axis= axes)
+        x_centered = x - mu[None, :, None, None]
+
+        grad_var = - np.sum(grad_norm * x_centered, axis= axes) * (std_inv ** 3) / 2
+        grad_mean = - (np.sum(grad_norm * std_inv_b, axis= axes) + 2 * grad_var * np.sum(x_centered, axis= axes) / m)
+        grad_input = (grad_norm * std_inv_b + 2 * x_centered * grad_var[None, :, None, None] / m + grad_mean[None, :, None, None] / m)
+        return grad_input
+
+    def update_params(self, optimizer):
+        optimizer.update(self.gamma, self.gamma_grad)
+        optimizer.update(self.beta, self.beta_grad)
+
+    def zero_grad(self):
+        self.gamma_grad = np.zeros_like(self.gamma_grad)
+        self.beta_grad = np.zeros_like(self.beta_grad)
+
+    def set_training(self):
+        self.training = True
+
+# Utils 2D =============================================================================================
+class Conv2D:
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True):
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size if isinstance(kernel_size, tuple) else (kernel_size, kernel_size)
+        self.stride = stride
+        self.padding = padding
+        self.bias_flag = bias
+        
+        # Initialize weights using He initialization
+        fan_in = in_channels * self.kernel_size[0] * self.kernel_size[1]
+        bound = np.sqrt(2.0 / fan_in)
+        self.weights = np.random.normal(0, bound, 
+                                      (out_channels, in_channels, self.kernel_size[0], self.kernel_size[1]))
+        
+        if bias:
+            self.bias = np.zeros(out_channels)
+        else:
+            self.bias = None
+            
+        # Gradients
+        self.weights_grad = np.zeros_like(self.weights)
+        if bias:
+            self.bias_grad = np.zeros_like(self.bias)
+            
+        # Cache for backward pass
+        self.input_cache = None
+        self.col_cache = None
+        
+    def im2col(self, x, kernel_h, kernel_w, stride, padding):
+        """
+        Convert input tensor to column matrix for efficient convolution
+        This transforms the convolution operation into a matrix multiplication
+        """
+        N, C, H, W = x.shape
+        
+        # Add padding
+        if padding > 0:
+            x_padded = np.pad(x, ((0, 0), (0, 0), (padding, padding), (padding, padding)), 
+                            mode='constant', constant_values=0)
+        else:
+            x_padded = x
+            
+        # Calculate output dimensions
+        out_h = (H + 2 * padding - kernel_h) // stride + 1
+        out_w = (W + 2 * padding - kernel_w) // stride + 1
+        
+        # Create column matrix
+        col = np.zeros((N, C, kernel_h, kernel_w, out_h, out_w))
+        
+        for j in range(kernel_h):
+            j_lim = j + stride * out_h
+            for i in range(kernel_w):
+                i_lim = i + stride * out_w
+                col[:, :, j, i, :, :] = x_padded[:, :, j:j_lim:stride, i:i_lim:stride]
+        
+        # Reshape to (N * out_h * out_w, C * kernel_h * kernel_w)
+        col = col.transpose(0, 4, 5, 1, 2, 3).reshape(N * out_h * out_w, -1)
+        
+        return col, out_h, out_w
+    
+    def col2im(self, col, input_shape, kernel_h, kernel_w, stride, padding):
+        """
+        Convert column matrix back to input tensor format for backpropagation
+        """
+        N, C, H, W = input_shape
+        out_h = (H + 2 * padding - kernel_h) // stride + 1
+        out_w = (W + 2 * padding - kernel_w) // stride + 1
+        
+        # Reshape column back to 6D tensor
+        col = col.reshape(N, out_h, out_w, C, kernel_h, kernel_w).transpose(0, 3, 4, 5, 1, 2)
+        
+        # Initialize padded input gradient
+        if padding > 0:
+            img = np.zeros((N, C, H + 2 * padding, W + 2 * padding))
+        else:
+            img = np.zeros((N, C, H, W))
+        
+        # Accumulate gradients
+        for j in range(kernel_h):
+            j_lim = j + stride * out_h
+            for i in range(kernel_w):
+                i_lim = i + stride * out_w
+                img[:, :, j:j_lim:stride, i:i_lim:stride] += col[:, :, j, i, :, :]
+        
+        # Remove padding if applied
+        if padding > 0:
+            return img[:, :, padding:-padding, padding:-padding]
+        else:
+            return img
+    
+    def forward(self, x):
+        """Optimized forward pass using im2col and matrix multiplication"""
+        # x shape: (N, C, H, W)
+        self.input_cache = x.copy()
+        
+        N, C, H, W = x.shape
+        FN, FC, FH, FW = self.weights.shape
+        
+        # Convert input to column matrix
+        col, out_h, out_w = self.im2col(x, FH, FW, self.stride, self.padding)
+        self.col_cache = col  # Cache for backward pass
+        
+        # Reshape weights to (out_channels, in_channels * kernel_h * kernel_w)
+        weights_col = self.weights.reshape(FN, -1)
+        
+        # Matrix multiplication: (out_channels, kernel_size) @ (kernel_size, N*out_h*out_w)
+        out = weights_col @ col.T  # Shape: (out_channels, N*out_h*out_w)
+        
+        # Add bias if present
+        if self.bias_flag:
+            out = out + self.bias.reshape(-1, 1)
+        
+        # Reshape output to (N, out_channels, out_h, out_w)
+        out = out.reshape(FN, N, out_h, out_w).transpose(1, 0, 2, 3)
+        
+        return out
+    
+    def backward(self, grad_output):
+        """Optimized backward pass using cached column matrix"""
+        x = self.input_cache
+        N, C, H, W = x.shape
+        FN, FC, FH, FW = self.weights.shape
+        
+        # Reshape grad_output to (out_channels, N*out_h*out_w)
+        grad_output_reshaped = grad_output.transpose(1, 0, 2, 3).reshape(FN, -1)
+        
+        # Gradient w.r.t. weights using matrix multiplication
+        # weights_grad = grad_output @ input_col^T
+        weights_col_grad = grad_output_reshaped @ self.col_cache  # Shape: (out_channels, kernel_size)
+        self.weights_grad += weights_col_grad.reshape(self.weights.shape)
+        
+        # Gradient w.r.t. bias
+        if self.bias_flag:
+            self.bias_grad += np.sum(grad_output_reshaped, axis=1)
+        
+        # Gradient w.r.t. input using matrix multiplication
+        # input_col_grad = weights^T @ grad_output
+        weights_col = self.weights.reshape(FN, -1)
+        col_grad = weights_col.T @ grad_output_reshaped  # Shape: (kernel_size, N*out_h*out_w)
+        col_grad = col_grad.T  # Shape: (N*out_h*out_w, kernel_size)
+        
+        # Convert column gradients back to input gradients
+        grad_x = self.col2im(col_grad, x.shape, FH, FW, self.stride, self.padding)
+        
+        return grad_x
+    
+    def update_params(self, optimizer):
+        optimizer.update(self.weights, self.weights_grad)
+        if self.bias_flag:
+            optimizer.update(self.bias, self.bias_grad)
+    
+    def zero_grad(self):
+        self.weights_grad = np.zeros_like(self.weights_grad)
+        if self.bias_flag:
+            self.bias_grad = np.zeros_like(self.bias_grad)
+
+class MaxPool2D:
+    def __init__(self, pool_size=2, stride=None):
+        self.pool_size = pool_size if isinstance(pool_size, tuple) else (pool_size, pool_size)
+        self.stride = stride if stride is not None else self.pool_size
+        self.input_cache = None
+        self.mask_cache = None
+    
+    def forward(self, x):
+        """Ultra-fast forward pass using stride tricks"""
+        from numpy.lib.stride_tricks import sliding_window_view
+        
+        self.input_cache = x.copy()
+        N, C, H, W = x.shape
+        pool_h, pool_w = self.pool_size
+        stride_h, stride_w = self.stride if isinstance(self.stride, tuple) else (self.stride, self.stride)
+        
+        # Calculate output dimensions
+        out_h = (H - pool_h) // stride_h + 1
+        out_w = (W - pool_w) // stride_w + 1
+        
+        # Use sliding window view for efficient pooling
+        # This creates a view of all pooling windows without copying data
+        windows = sliding_window_view(x, (pool_h, pool_w), axis=(2, 3))
+        windows = windows[:, :, ::stride_h, ::stride_w, :, :]
+        
+        # Find max values across pooling dimensions
+        out = np.max(windows, axis=(4, 5))
+        
+        # Create mask for backprop (simplified version)
+        self.mask_cache = np.zeros_like(x)
+        
+        # This is still O(n) but more efficient than before
+        windows_flat = windows.reshape(N, C, out_h, out_w, -1)
+        max_indices = np.argmax(windows_flat, axis=4)
+        
+        for n in range(N):
+            for c in range(C):
+                for i in range(out_h):
+                    for j in range(out_w):
+                        h_start = i * stride_h
+                        w_start = j * stride_w
+                        max_idx = max_indices[n, c, i, j]
+                        max_h, max_w = np.unravel_index(max_idx, (pool_h, pool_w))
+                        self.mask_cache[n, c, h_start + max_h, w_start + max_w] = 1
+        
+        return out
+    
+    def backward(self, grad_output):
+        """Same backward pass as regular MaxPool2D"""
+        N, C, out_h, out_w = grad_output.shape
+        pool_h, pool_w = self.pool_size
+        stride_h, stride_w = self.stride if isinstance(self.stride, tuple) else (self.stride, self.stride)
+        
+        grad_input = np.zeros_like(self.input_cache)
+        
+        for n in range(N):
+            for c in range(C):
+                for i in range(out_h):
+                    for j in range(out_w):
+                        h_start = i * stride_h
+                        h_end = h_start + pool_h
+                        w_start = j * stride_w
+                        w_end = w_start + pool_w
+                        
+                        grad_input[n, c, h_start:h_end, w_start:w_end] += (
+                            grad_output[n, c, i, j] * self.mask_cache[n, c, h_start:h_end, w_start:w_end]
+                        )
+                        
+        return grad_input
+    
+    def update_params(self, optimizer):
+        pass
+    
+    def zero_grad(self):
+        pass

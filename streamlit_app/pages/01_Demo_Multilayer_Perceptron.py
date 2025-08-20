@@ -1,412 +1,490 @@
-import streamlit as st
+import time
+import sys
 import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-import plotly.graph_objects as go
+import streamlit as st
+from pathlib import Path
+import plotly.graph_objects as go   
 import plotly.express as px
 from plotly.subplots import make_subplots
-import time
-import io
-import sys
-from pathlib import Path
 
-# Import neural network modules from the core directory
 root_path = Path.cwd().parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))
 
 from NeuralKit import *
+from theme import *
 
-# Set page config
 st.set_page_config(
-    page_title="Multilayer Perceptron Demo",
+    page_title= "Multilayer Perceptron Demo",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Custom CSS for better styling
-st.markdown("""
-    <style>
-        .main-header {
-            font-size: 3rem;
-            color: #FF6B6B;
-            text-align: center;
-            margin-bottom: 2rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-        }
-        .sub-header {
-            font-size: 1.5rem;
-            color: #4ECDC4;
-            margin-bottom: 1rem;
-        }
-        .metric-box {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 1rem;
-            border-radius: 10px;
-            color: white;
-            text-align: center;
-            margin: 0.5rem 0;
-        }
-        .stSelectbox label, .stSlider label {
-            color: #FF6B6B !important;
-            font-weight: bold;
-        }
-    </style>
-""", unsafe_allow_html=True)
+st.markdown(get_css(), unsafe_allow_html=True)
 
-# Try to import your actual neural network modules
-def load_nn_modules():
-    """Load neural network modules"""
-    try:
-        # Add the parent directory to sys.path to import core modules
-        root_path = Path.cwd().parent
-        if str(root_path) not in sys.path:
-            sys.path.insert(0, str(root_path))
-        
-        # Import your actual modules
-        from NeuralKit.network import NeuralNetwork
-        from NeuralKit.layers import Linear, ReLULayer, SigmoidLayer, TanhLayer, SoftmaxCrossEntropyLoss
-        from NeuralKit.optimizers import Adam, SGD, Momentum, RMSProp
-        from NeuralKit.loss import mse_loss, mse_loss_derivative, cross_entropy_loss
-        from NeuralKit.utils import batch_iterator
-        from NeuralKit.data_generator import Spiral, Circle, Zone, GeneratePolynomialData
-        
-        return {
-            'NeuralNetwork': NeuralNetwork,
-            'Linear': Linear,
-            'ReLULayer': ReLULayer,
-            'SigmoidLayer': SigmoidLayer,
-            'TanhLayer': TanhLayer,
-            'SoftmaxCrossEntropyLoss': SoftmaxCrossEntropyLoss,
-            'Adam': Adam,
-            'SGD': SGD,
-            'Momentum': Momentum,
-            'RMSProp': RMSProp,
-            'mse_loss': mse_loss,
-            'mse_loss_derivative': mse_loss_derivative,
-            'cross_entropy_loss': cross_entropy_loss,
-            'batch_iterator': batch_iterator,
-            'Spiral': Spiral,
-            'Circle': Circle,
-            'Zone': Zone,
-            'GeneratePolynomialData': GeneratePolynomialData
-        }
-    except ImportError as e:
-        st.error(f"Could not import neural network modules: {e}")
-        st.info("Make sure your 'core' module is in the parent directory")
-        return None
-
-# Data generation functions using your actual classes
-class DataGenerator:
-    def __init__(self, nn_modules):
-        self.nn_modules = nn_modules
-    
-    def spiral_data(self, n_points=200, n_classes=3):
-        """Generate spiral classification data using your Spiral class"""
-        if self.nn_modules and 'Spiral' in self.nn_modules:
-            spiral = self.nn_modules['Spiral'](n_points, n_classes, 2)
-            return spiral.generate()
-        else:
-            # Fallback implementation
-            return self._fallback_spiral(n_points, n_classes)
-    
-    def circle_data(self, n_points=200, n_classes=3):
-        """Generate circular classification data using your Circle class"""
-        if self.nn_modules and 'Circle' in self.nn_modules:
-            circle = self.nn_modules['Circle'](n_points, n_classes, 2)
-            return circle.generate()
-        else:
-            return self._fallback_circle(n_points, n_classes)
-    
-    def polynomial_data(self, n_points=200):
-        """Generate polynomial regression data"""
-        if self.nn_modules and 'GeneratePolynomialData' in self.nn_modules:
-            poly_gen = self.nn_modules['GeneratePolynomialData'](n_points, [1, -2, 3], 2)
-            data = poly_gen.generate()
-            return data['x'].reshape(-1, 1), data['y']
-        else:
-            x = np.linspace(-3, 3, n_points)
-            y = 0.5 * x**3 - 2 * x**2 + x + np.random.normal(0, 1, n_points)
-            return x.reshape(-1, 1), y
-    
-    def xor_data(self):
-        """Generate XOR problem data"""
-        X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
-        y = np.array([0, 1, 1, 0], dtype=np.uint8)
-        return X, y
-    
-    def _fallback_spiral(self, n_points, n_classes):
-        """Fallback spiral data generation"""
-        X = np.zeros((n_points * n_classes, 2))
-        y = np.zeros(n_points * n_classes, dtype='uint8')
-        
-        for j in range(n_classes):
-            ix = range(n_points * j, n_points * (j + 1))
-            r = np.linspace(0.0, 1, n_points)
-            t = np.linspace(j * 4, (j + 1) * 4, n_points) + np.random.randn(n_points) * 0.2
-            X[ix] = np.c_[r * np.sin(t), r * np.cos(t)]
-            y[ix] = j
-        return X, y
-    
-    def _fallback_circle(self, n_points, n_classes):
-        """Fallback circle data generation"""
-        X = np.zeros((n_points * n_classes, 2))
-        y = np.zeros(n_points * n_classes, dtype='uint8')
-        
-        for j in range(n_classes):
-            ix = range(n_points * j, n_points * (j + 1))
-            r = (j + 1) * 2 + np.random.randn(n_points) * 0.5
-            t = np.linspace(0, 2 * np.pi, n_points) + np.random.randn(n_points) * 0.2
-            X[ix] = np.c_[r * np.sin(t), r * np.cos(t)]
-            y[ix] = j
-        return X, y
-
-def plot_data_2d(X, y, title="Data Visualization"):
-    """Plot 2D data with different colors for each class"""
-    fig = px.scatter(
-        x=X[:, 0], y=X[:, 1], 
-        color=y.astype(str),
-        title=title,
-        labels={'x': 'Feature 1', 'y': 'Feature 2', 'color': 'Class'},
-        color_discrete_sequence=px.colors.qualitative.Set1
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(size=12)
-    )
-    return fig
-
-def plot_training_history(losses, accuracies=None):
-    """Plot training history"""
-    epochs = range(1, len(losses) + 1)
-    
-    if accuracies is not None:
-        fig = make_subplots(
-            rows=1, cols=2,
-            subplot_titles=('Training Loss', 'Training Accuracy')
-        )
-        fig.add_trace(
-            go.Scatter(x=list(epochs), y=losses, name='Loss', line=dict(color='red')),
-            row=1, col=1
-        )
-        fig.add_trace(
-            go.Scatter(x=list(epochs), y=accuracies, name='Accuracy', line=dict(color='blue')),
-            row=1, col=2
-        )
+def Optimizer(optimizer_type, learning_rate):
+    # Create an optimizer based on the selected type
+    if optimizer_type == "Adam":
+        return Adam(learning_rate=learning_rate)
+    elif optimizer_type == "SGD":
+        return SGD(learning_rate=learning_rate)
+    elif optimizer_type == "Momentum":
+        return Momentum(learning_rate=learning_rate)
+    elif optimizer_type == "RMSProp":
+        return RMSProp(learning_rate=learning_rate)
     else:
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=list(epochs), y=losses, name='Loss', line=dict(color='red')))
-        fig.update_layout(title='Training Loss', xaxis_title='Epoch', yaxis_title='Loss')
-    
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(size=12)
-    )
-    return fig
+        raise ValueError(f"Unknown optimizer type: {optimizer_type}")
 
-def train_model(model, optimizer, X, y, epochs, batch_size, problem_type):
-    """Train the model with real implementation"""
+def create_model(input_size, hidden_sizes, output_size, activation):
+    # Chuẩn hoá tên activation
+    key = str(activation).strip().lower()
+    act_map = {
+        "relu": ReLULayer,
+        "sigmoid": SigmoidLayer,
+        "tanh": TanhLayer,
+    }
+    if key not in act_map:
+        raise ValueError(f"Unknown activation function: {activation}")
+
+    model = NeuralNetwork()
+    in_dim = input_size
+
+    # Hidden blocks: Linear -> (NEW Activation)
+    for h in (hidden_sizes):
+        model.add_layer(Linear(in_dim, h))
+        model.add_layer(act_map[key]())   # tạo instance MỚI cho mỗi tầng
+        in_dim = h
+
+    # Output layer (logits nếu dùng SoftmaxCrossEntropyLoss)
+    model.add_layer(Linear(in_dim, output_size))
+
+    return model
+
+
+def train_model(X, y, optimizer, model, epochs: int, batch_size: int):
     losses = []
-    accuracies = [] if "Classification" in problem_type else None
-    
-    # Prepare progress tracking
+    accuracies = []
+
+    # UI
     progress_bar = st.progress(0)
     status_text = st.empty()
-    
+
     model.train()
-    
+    is_classification = (st.session_state.get("data_type") == "Classification")
+    ce_loss = SoftmaxCrossEntropyLoss() if is_classification else None
+
     for epoch in range(epochs):
         epoch_loss = 0.0
         epoch_correct = 0
         epoch_total = 0
         batch_count = 0
-        
 
-        batch_iter = batch_iterator(X, y, batch_size, shuffle=True)
-        
-        for X_batch, y_batch in batch_iter:
+        for X_batch, y_batch in batch_iterator(X, y, batch_size, shuffle=True):
             model.zero_grad()
-            
-            # Forward pass
-            if "Classification" in problem_type:
-                logits = model.forward(X_batch)
-                
-                # Multi-class classification with softmax cross entropy
-                if nn_modules and 'SoftmaxCrossEntropyLoss' in nn_modules:
-                    loss_fn = nn_modules['SoftmaxCrossEntropyLoss']()
-                    loss = loss_fn.forward(logits, y_batch)
-                    grad = loss_fn.backward()
-                else:
-                    loss = nn_modules['cross_entropy_loss'](logits, y_batch)
-                    grad = 2 * (logits - y_batch) / len(y_batch)  # Simplified
-                    
-                    # Accuracy calculation
-                    predictions = np.argmax(logits, axis=1)
-                    epoch_correct += np.sum(predictions == y_batch)
-            else:
-                # Regression
-                predictions = model.forward(X_batch)
-                loss = nn_modules['mse_loss'](predictions, y_batch.reshape(-1, 1))
-                grad = nn_modules['mse_loss_derivative'](predictions, y_batch.reshape(-1, 1))
-            
-            epoch_loss += loss
-            epoch_total += len(y_batch)
-            batch_count += 1
-            
-            # Backward pass
-            model.backward(grad)
-            model.update_params(optimizer)
-        
-        # Calculate epoch metrics
-        avg_loss = epoch_loss / max(batch_count, 1)
-        losses.append(avg_loss)
-        
-        if accuracies is not None:
-            acc = epoch_correct / max(epoch_total, 1)
-            accuracies.append(acc)
-        
-        # Update progress
-        progress_bar.progress((epoch + 1) / epochs)
-        if epoch == epochs - 1:
-            progress_bar.empty()
 
-        # Allow for early stopping or UI updates
-        if epoch % 10 == 0:
-            time.sleep(0.01)  # Small delay to allow UI updates
-    
+            if is_classification:
+                # y phải là 1-D int, zero-based
+                if not np.issubdtype(y_batch.dtype, np.integer):
+                    y_batch = y_batch.astype(np.int64)
+                if y_batch.ndim != 1:
+                    y_batch = y_batch.reshape(-1)
+
+                # forward → logits (N, C)
+                logits = model.forward(X_batch)
+                assert logits.ndim == 2, f"logits must be 2D, got {logits.shape}"
+                N, C = logits.shape
+                max_label = int(np.max(y_batch))
+                if max_label >= C:
+                    raise ValueError(
+                        f"Target label {max_label} out of range for logits with C={C}. "
+                        f"→ Hãy đảm bảo output layer có {max_label+1} units."
+                    )
+
+                # loss & grad (đã ổn định số bên trong lớp)
+                loss_value = ce_loss.forward(logits, y_batch)
+                grad_logits = ce_loss.backward()
+
+                # accuracy
+                preds = np.argmax(logits, axis=1)
+                epoch_correct += np.sum(preds == y_batch)
+                epoch_total += len(y_batch)
+
+                # backward
+                model.backward(grad_logits)
+
+            else:
+                # Regression: đảm bảo (N, 1)
+                preds = model.forward(X_batch)
+                if preds.ndim == 1: 
+                    preds = preds.reshape(-1, 1)
+                y_b = y_batch
+                if y_b.ndim == 1:
+                    y_b = y_b.reshape(-1, 1)
+
+                if preds.shape != y_b.shape:
+                    raise ValueError(f"Prediction shape {preds.shape} != target shape {y_b.shape}. "
+                                     f"→ Với regression, output layer nên là 1 unit và y có shape (N,1).")
+
+                loss_value = mse_loss(preds, y_b)
+                grad_preds = mse_loss_derivative(preds, y_b)
+
+                # backward
+                model.backward(grad_preds)
+
+            # tích lũy
+            epoch_loss += loss_value
+            batch_count += 1
+
+            # cập nhật tham số
+            model.update_params(optimizer)   
+
+        # log theo epoch
+        avg_epoch_loss = epoch_loss / max(batch_count, 1)
+        losses.append(avg_epoch_loss)
+
+        if is_classification:
+            epoch_acc = epoch_correct / max(epoch_total, 1)
+            accuracies.append(epoch_acc)
+            # status_text.text(f"Epoch {epoch+1}/{epochs} - Loss: {avg_epoch_loss:.4f} - Acc: {epoch_acc:.4f}")
+        else:
+            accuracies = None  # không có acc cho regression
+            # status_text.text(f"Epoch {epoch+1}/{epochs} - Loss: {avg_epoch_loss:.4f}")
+
+        progress_bar.progress((epoch + 1) / epochs)
+
+    # Set 2s to clear progress    
+    time.sleep(2)
+    progress_bar.empty()
+
     return losses, accuracies
 
+def plot_data_2d(X, y, title="Data Visualization"):
+    # Plot 2D data with different colors for each class
+    fig = px.scatter(
+        x= X[:, 0], y= X[:, 1], 
+        color= y.astype(str),
+        title= title,
+        labels= {
+            'x': 'Feature 1', 
+            'y': 'Feature 2', 
+            'color': 'Class'
+        },
+        color_discrete_sequence= px.colors.qualitative.Set1
+    )
+    fig.update_layout(
+        plot_bgcolor= 'rgba(0,0,0,0)',
+        paper_bgcolor= 'rgba(0,0,0,0)',
+        font= dict(size=12)
+    )
+    return fig
+
+def generate_data():
+    if st.session_state.get("data_type") == "Classification":
+        if st.session_state.get("problem_type") == "Spiral":
+            st.session_state.X, st.session_state.y = SpiralDataset(
+                n_classes= st.session_state.get("num_classes"), 
+                points_per_class= st.session_state.get("num_samples")).generate()
+            
+        elif st.session_state.get("problem_type") == "Circle":
+            st.session_state.X, st.session_state.y = CircleDataset(
+                n_classes= st.session_state.get("num_classes"), 
+                points_per_class= st.session_state.get("num_samples")).generate()
+            
+        elif st.session_state.get("problem_type") == "Line":
+            st.session_state.X, st.session_state.y = LineDataset(
+                n_classes= st.session_state.get("num_classes"), 
+                points_per_class= st.session_state.get("num_samples")).generate()
+            
+        elif st.session_state.get("problem_type") == "Zone":
+            st.session_state.X, st.session_state.y = ZoneDataset(
+                n_classes= st.session_state.get("num_classes"), 
+                points_per_class= st.session_state.get("num_samples")).generate()
+    else:
+        st.session_state.X, st.session_state.y = PolynomialDataset(
+            n_points= st.session_state.get("num_samples")).generate()
+
+st.session_state.setdefault("num_classes", 2)
+st.session_state.setdefault("num_samples", 100)
+st.session_state.setdefault("prev_num_classes", st.session_state.num_classes)
+st.session_state.setdefault("prev_num_samples", st.session_state.num_samples)
+st.session_state.setdefault("data_change", True)   
+st.session_state.setdefault("fig", None)
+st.session_state.setdefault("pre_fig", None)
+
+def mark_data_change():
+    st.session_state["data_change"] = True
+
+def render_training_results(
+    X, y, model, losses, accuracies=None, *,
+    epochs: int = None,
+    problem_type: str = "Classification",     # "Classification" | "Regression"
+    center_charts: bool = True                # đưa biểu đồ vào cột giữa
+):
+    """
+    Hiển thị Training Results + Visualization (Decision Boundary hoặc Regression Curve)
+    - X, y: numpy arrays
+    - model: có .forward(), .train(), .eval(), và các layer Linear với .weights/.bias (nếu muốn đếm params chuẩn)
+    - losses: list[float] theo epoch
+    - accuracies: list[float] theo epoch (hoặc None cho Regression)
+    - epochs: tổng số epoch để hiển thị khi không có acc
+    - problem_type: "Classification" / "Regression"
+    - center_charts: True -> đặt biểu đồ vào col giữa (layout [1,2,1])
+    """
+
+    # ====== Helpers nội bộ ======
+    def _count_params_from_model(m):
+        total = 0
+        for lyr in getattr(m, "layers", []):
+            if hasattr(lyr, "weights") and lyr.weights is not None:
+                total += np.prod(lyr.weights.shape)
+            if hasattr(lyr, "bias") and lyr.bias is not None:
+                total += np.prod(lyr.bias.shape)
+        return int(total) if total > 0 else None
+
+    def _plot_history(loss_list, acc_list):
+        has_acc = acc_list is not None and len(acc_list) > 0
+        if has_acc:
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+            fig.add_trace(go.Scatter(
+                y=loss_list, x=list(range(1, len(loss_list)+1)),
+                mode="lines+markers", name="Loss", hovertemplate="Epoch %{x}<br>Loss=%{y:.4f}<extra></extra>"
+            ), secondary_y=False)
+            fig.add_trace(go.Scatter(
+                y=acc_list, x=list(range(1, len(acc_list)+1)),
+                mode="lines+markers", name="Accuracy", hovertemplate="Epoch %{x}<br>Acc=%{y:.4f}<extra></extra>"
+            ), secondary_y=True)
+            fig.update_yaxes(title_text="Loss", secondary_y=False)
+            fig.update_yaxes(title_text="Accuracy", secondary_y=True, range=[0, 1])
+        else:
+            fig = go.Figure(go.Scatter(
+                y=loss_list, x=list(range(1, len(loss_list)+1)),
+                mode="lines+markers", name="Loss", hovertemplate="Epoch %{x}<br>Loss=%{y:.4f}<extra></extra>"
+            ))
+            fig.update_yaxes(title_text="Loss")
+
+        fig.update_layout(
+            title=dict(text="Training History", x=0.5, xanchor="center"),
+            xaxis_title="Epoch",
+            template="plotly_white",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            hoverlabel=dict(bgcolor="white")
+        )
+        return fig
+
+    def _plot_decision_boundary(X2d, y_cls):
+        # Lưới quyết định
+        h = 0.02
+        x_min, x_max = X2d[:, 0].min() - 1.0, X2d[:, 0].max() + 1.0
+        y_min, y_max = X2d[:, 1].min() - 1.0, X2d[:, 1].max() + 1.0
+        xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                             np.arange(y_min, y_max, h))
+        grid = np.c_[xx.ravel(), yy.ravel()]
+
+        model.eval()
+        Z_pred = model.forward(grid)
+
+        # Nhận dạng binary vs multi-class
+        if Z_pred.ndim == 1 or (Z_pred.ndim == 2 and Z_pred.shape[1] == 1):
+            # binary 1-logit -> sigmoid threshold 0.5
+            probs = 1.0 / (1.0 + np.exp(-Z_pred.reshape(-1)))
+            Z = (probs >= 0.5).astype(int)
+        else:
+            Z = np.argmax(Z_pred, axis=1)
+
+        Z = Z.reshape(xx.shape)
+
+        # Vẽ
+        fig = go.Figure()
+        fig.add_trace(go.Contour(
+            x=np.arange(x_min, x_max, h),
+            y=np.arange(y_min, y_max, h),
+            z=Z,
+            showscale=False,
+            opacity=0.35,
+            line=dict(width=0),
+            colorscale="Viridis",
+            name="Decision Regions"
+        ))
+
+        colors = px.colors.qualitative.Set1
+        classes = np.unique(y_cls)
+        for i, c in enumerate(classes):
+            mask = (y_cls == c)
+            fig.add_trace(go.Scatter(
+                x=X2d[mask, 0], y=X2d[mask, 1],
+                mode="markers", name=f"Class {c}",
+                marker=dict(color=colors[i % len(colors)], size=7, line=dict(width=1.5, color="white"))
+            ))
+
+        fig.update_layout(
+            title=dict(text="Decision Boundary", x=0.5, xanchor="center"),
+            template="plotly_white",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            hoverlabel=dict(bgcolor="white"),
+            xaxis=dict(title="Feature 1", showgrid=True, gridcolor="rgba(0,0,0,0.08)",
+                       zeroline=False, showline=True, linecolor="rgba(0,0,0,0.25)",
+                       mirror=True, ticks="outside", ticklen=6,
+                       scaleanchor="y", scaleratio=1),
+            yaxis=dict(title="Feature 2", showgrid=True, gridcolor="rgba(0,0,0,0.08)",
+                       zeroline=False, showline=True, linecolor="rgba(0,0,0,0.25)",
+                       mirror=True, ticks="outside", ticklen=6),
+        )
+        return fig
+
+    def _plot_regression(X1d, y_real):
+        # chuẩn hóa X thành (N,1)
+        X1 = X1d.reshape(-1, 1) if X1d.ndim == 1 else X1d
+        # đường mượt
+        x_smooth = np.linspace(X1.min(), X1.max(), 300).reshape(-1, 1)
+
+        model.eval()
+        y_pred_smooth = model.forward(x_smooth).reshape(-1)
+        y_pred_train = model.forward(X1).reshape(-1)
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=X1.reshape(-1), y=y_real.reshape(-1),
+            mode="markers", name="Training Data",
+            marker=dict(size=7, opacity=0.75)
+        ))
+        fig.add_trace(go.Scatter(
+            x=x_smooth.reshape(-1), y=y_pred_smooth,
+            mode="lines", name="Model Predictions",
+            line=dict(width=3)
+        ))
+        fig.add_trace(go.Scatter(
+            x=X1.reshape(-1), y=y_pred_train,
+            mode="markers", name="Train Preds",
+            marker=dict(size=6, symbol="x")
+        ))
+        fig.update_layout(
+            title=dict(text="Regression Model Predictions", x=0.5, xanchor="center"),
+            xaxis_title="X", yaxis_title="y",
+            template="plotly_white",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            hoverlabel=dict(bgcolor="white"),
+        )
+        return fig
+
+    # ====== UI: Header ======
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<h3 class="sub-header">Training Results</h3>', unsafe_allow_html=True)
+
+    # ====== Metrics ======
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        final_loss = float(losses[-1]) if (losses and len(losses) > 0) else float("nan")
+        st.metric(label="Final Loss", value=f"{final_loss:.4f}" if np.isfinite(final_loss) else "N/A")
+
+    with c2:    
+        if problem_type == "Classification" and accuracies and len(accuracies) > 0:
+            st.metric(label="Final Accuracy", value=f"{accuracies[-1]:.4f}")
+        else:
+            st.metric(label="Epochs", value=epochs if epochs is not None else len(losses))
+
+    with c3:
+        param_count = _count_params_from_model(model)
+        st.metric(label="Parameters", value=f"{param_count:,}" if param_count is not None else "N/A")
+
+    # ====== Training history (loss/acc) ======
+    fig_history = _plot_history(losses, accuracies)
+    
+    c1, c2, c3 = st.columns([3, 0.25, 3])
+    with c1: 
+        st.plotly_chart(fig_history, use_container_width=True)
+
+    with c3:
+        if problem_type == "Classification":
+            fig_db = _plot_decision_boundary(X, y)
+            st.plotly_chart(fig_db, use_container_width=True)
+
+        elif problem_type == "Regression":
+            fig_reg = _plot_regression(X, y)
+            st.plotly_chart(fig_reg, use_container_width=True)
+
 def main():
-    # # Load neural network modules
-    nn_modules = load_nn_modules()
-    if nn_modules is None:
-        st.warning("Using fallback implementations. Neural network training may not work properly.")
-        return
-    
-    # Initialize data generator
-    # data_gen = DataGenerator(nn_modules)
-    
-    # Main title
-    st.markdown('<h1 class="main-header">MLP Demo</h1>', unsafe_allow_html=True)
+    st.markdown("""
+            <div style="text-align: center;">
+                <h1>Demo Multilayer Perceptron</h1>
+            </div>
+        """, unsafe_allow_html=True)
     st.markdown("<br></br>", unsafe_allow_html=True)
+    
     st.markdown("""
             <div style="text-align: center;">
                 <h5>Description: Built from scratch with customizable architecture and real-time visualization</h5>
             </div>
         """, unsafe_allow_html=True)
-    
     st.markdown("", unsafe_allow_html=True)
 
+    st.markdown("<h3>Type of Data: </h3>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        data_type = st.selectbox(
+            "Select Data Type",
+            options=["Classification", "Regression"],
+            key="data_type"
+        )
+
+    with col2:
+        if st.session_state.get("data_type") == "Classification":
+            problem_type = st.selectbox(
+                "Select Problem Type",
+                options=["Spiral", "Circle", "Line", "Zone"],
+                key="problem_type",
+                on_change= mark_data_change
+            )
+        else:
+            problem_type = st.selectbox(
+                "Select Problem Type",
+                options=["Polynomial"],
+                key="problem_type"
+            )
+    
     col1, space, col2, space, col3 = st.columns([3, 0.5, 3, 0.5, 3])
 
     with col1:
-        # configuration
-        st.markdown('<h3 class="sub-header"> Configuration</h3>', unsafe_allow_html=True)
-        
-        # Problem type selection
-        problem_type = st.selectbox(
-            "Select type of problem",
-            ["Classification - Spiral", "Classification - Circles", "Regression - Polynomial"]
-        )
-        # Data generation
-        st.markdown('<h3 class="sub-header"> Data parameters</h3>', unsafe_allow_html=True) 
-        
-        if "Classification" in problem_type:
-            if "XOR" in problem_type:
-                n_samples = 4
-                st.info("XOR problem has fixed 4 samples")
-            else:
-                n_samples = st.slider("Number of samples per class", 1, 500, 200)
-                n_classes = st.slider("Number of classes", 2, 5, 3)
-        else:
-            n_samples = st.slider("Number of samples", 100, 1000, 200)
-    with col2:
         # Network architecture
         st.markdown("<h3>Network architecture</h3>", unsafe_allow_html=True) 
         
-        if "XOR" in problem_type:
-            hidden_sizes = [4]  # Fixed for XOR
-            st.info("XOR uses fixed architecture: 2 → 4 → 1")
-        else:
-            n_hidden_layers = st.slider("Number of hidden layers", 1, 5, 2)
-            hidden_sizes = []
-            for i in range(n_hidden_layers):
-                size = st.slider(f"Hidden layer {i+1} size", 8, 512, 64)
-                hidden_sizes.append(size)
+
+        n_hidden_layers = st.slider("Number of hidden layers", 1, 5, 2)
+        hidden_sizes = []
+        for i in range(n_hidden_layers):
+            size = st.slider(f"Hidden layer {i+1} size", 8, 512, 16)
+            hidden_sizes.append(size)
         
-        activation = st.selectbox("Activation function", ["ReLU", "Sigmoid", "Tanh"])
-    with col3:
+        activation = st.selectbox("Activation function", ["ReLU", "Sigmoid", "Tanh"], key="activation")
+        
+    with col2:
         # Training parameters
         st.markdown("<h3>Training parameters</h3>", unsafe_allow_html=True)
+        learning_rate = st.slider("Learning rate", 0.0001, 0.1, 0.001, 0.0001, format="%.4f", key="learning_rate")
+        epochs = st.slider("Epochs", 10, 1000, 100, key="epochs")
+        batch_size = st.slider("Batch size", 8, 256, 32, key="batch_size") 
+        optimizer_type = st.selectbox(
+            "Optimizer", 
+            ["Adam", "SGD", "Momentum", "RMSProp"],
+            key="optimizer_type"
+        )
         
-        optimizer_type = st.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
-        learning_rate = st.slider("Learning rate", 0.0001, 0.1, 0.001, format="%.4f")
-        epochs = st.slider("Epochs", 10, 1000, 100)
-        batch_size = st.slider("Batch size", 8, 256, 32) if not "XOR" in problem_type else 4
-    
-    
-    # Generate data
-    col1, col2, col3 = st.columns([1.5,1,1.5])
-    with col2:
-        st.markdown("", unsafe_allow_html=True)
-        if st.button("# Click here to generate new data", type="primary", width="stretch"):
-            if 'X' in st.session_state:
-                del st.session_state.X
-                del st.session_state.y
-        
-        if 'X' not in st.session_state:
-            with st.spinner("Generating data..."):
-                if problem_type == "Classification - Spiral":
-                    X, y = SpiralDataset(n_samples, n_classes).generate()
-                elif problem_type == "Classification - Circles":
-                    X, y = CircleDataset(n_samples, n_classes).generate()
-                else:  # Regression
-                    X, y = PolynomialDataset(n_samples).generate()
-                
-                st.session_state.X = X
-                st.session_state.y = y
-    
-    X, y = st.session_state.X, st.session_state.y
-    
-    st.markdown("<br></br>", unsafe_allow_html=True)
-    
-    # Main content area
-    col1, space, col2 = st.columns([6, 1, 4])
-    
-    with col1:
-        st.markdown('<h3 class="sub-header">Data Visualization</h3>', unsafe_allow_html=True)
-        
-        if X.shape[1] == 2:  # 2D data
-            fig_data = plot_data_2d(X, y, f"{problem_type} Data")
-            st.plotly_chart(fig_data, use_container_width=True)
-        else:  # 1D regression data
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=X.flatten(), y=y, mode='markers', name='Data'))
-            fig.update_layout(
-                title="Regression Data",
-                xaxis_title="X",
-                yaxis_title="y",
-                plot_bgcolor='rgba(0,0,0,0)'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.markdown('<h3 class="sub-header">Network Architecture</h3>', unsafe_allow_html=True)
-        st.markdown('<br></br>', unsafe_allow_html=True)
+    with col3:
         # Display network architecture
-        arch_text = f"Input ({X.shape[1]})"
+        st.markdown("<br>", unsafe_allow_html=True)
+        generate_data()
+        arch_text = f"Input ({st.session_state.X.shape[1]})"
         for i, size in enumerate(hidden_sizes):
             arch_text += f" → Hidden {i+1} ({size})"
         
-        if "Classification" in problem_type:
-            if "XOR" in problem_type:
-                output_size = 1
-            else:
-                output_size = len(np.unique(y))
+        if st.session_state.get("data_type") == "Classification":
+            output_size = len(np.unique(st.session_state.y))
         else:
             output_size = 1
         
@@ -421,63 +499,193 @@ def main():
         st.write(f"- Epochs: {epochs}")
         st.write(f"- Batch Size: {batch_size}")
         st.write(f"- Activation: {activation}")
+
+    # First enerate data
+    generate_data()
+    st.markdown('<br></br>', unsafe_allow_html=True)
+
+    # Plot data
+    col1, space, col2 = st.columns([6, 1, 4])
     
-    col1, col2, col3 = st.columns([1.5,1,1.5])
-    with col2:
-        st.markdown("", unsafe_allow_html=True)
-        # Training section
-        if st.button("Start Training", type="primary", width="stretch"):
-            with st.spinner("Training neural network..."):
-                # Create model
-                model = nn_modules['NeuralNetwork']()
+    with col1:
+        st.markdown('<h3>Data Visualization</h3>', unsafe_allow_html=True)
+        # Fix lag ngay đây -> thêm 1 điều kiện khi thay đỏi n_classes, poin_per_class
+        # dùng on_change trả về state
+        # Chỉ vẽ khi có dữ liệu & không ở trạng thái change
+        flag_Xy_available = (
+            "X" in st.session_state and
+            "y" in st.session_state and
+            st.session_state.X is not None and
+            st.session_state.y is not None and
+            len(st.session_state.X) > 0 and
+            len(st.session_state.y) > 0
+        )
+
+        changed = (
+            st.session_state.num_classes != st.session_state.prev_num_classes
+            or st.session_state.num_samples != st.session_state.prev_num_samples
+        )
+
+        if flag_Xy_available and (changed or st.session_state.get("data_change", False)): # flag_Xy_available and changed
+            # Generate data
+            generate_data()
+
+            if st.session_state.X.shape[1] == 2:  # 2D data
+                fig_data = plot_data_2d(
+                    st.session_state.X, 
+                    st.session_state.y, 
+                    f"{problem_type} Data")
                 
-                # Add layers
-                prev_size = X.shape[1]
-                for hidden_size in hidden_sizes:
-                    model.add_layer(nn_modules['Linear'](prev_size, hidden_size, init_type='he'))
-                    
-                    if activation == "ReLU":
-                        model.add_layer(nn_modules['ReLULayer']())
-                    elif activation == "Sigmoid":
-                        model.add_layer(nn_modules['SigmoidLayer']())
-                    else:  # Tanh
-                        model.add_layer(nn_modules['TanhLayer']())
-                        
-                    prev_size = hidden_size
+                st.plotly_chart(fig_data, use_container_width=True)
+            
+            else:  # 1D regression data
+                fig_data = go.Figure()
+
+                fig_data.add_trace(go.Scatter(
+                    x= st.session_state.X.flatten(), 
+                    y= st.session_state.y, 
+                    mode='markers', name='Data'))
                 
-                # Output layer
-                model.add_layer(nn_modules['Linear'](prev_size, output_size))
-                
-                if "XOR" in problem_type:
-                    model.add_layer(nn_modules['SigmoidLayer']())
-                
-                # Create optimizer
-                if optimizer_type == "Adam":
-                    optimizer = nn_modules['Adam'](learning_rate)
-                elif optimizer_type == "SGD":
-                    optimizer = nn_modules['SGD'](learning_rate)
-                elif optimizer_type == "Momentum":
-                    optimizer = nn_modules['Momentum'](learning_rate)
-                else:  # RMSProp
-                    optimizer = nn_modules['RMSProp'](learning_rate)
-                
-                # Train model
-                losses, accuracies = train_model(
-                    model, optimizer, X, y, epochs, batch_size, problem_type, nn_modules
+                fig_data.update_layout(
+                    title="Regression Data",
+                    xaxis_title="X",
+                    yaxis_title="y",
+                    plot_bgcolor='rgba(0,0,0,0)'
                 )
-                
-                # Store results in session state
-                st.session_state.training_complete = True
-                st.session_state.losses = losses
-                st.session_state.accuracies = accuracies
+                st.plotly_chart(fig_data, use_container_width=True)
+            st.session_state.fig = fig_data
+            st.session_state.pre_fig = fig_data
+
+            # Reset trạng thái thay đổi
+            st.session_state.data_change = False
+            # Cập nhật prev_num_classes, prev_num_samples
+
+            st.session_state.prev_num_classes = st.session_state.num_classes
+            st.session_state.prev_num_samples = st.session_state.num_samples
+        else:
+            if st.session_state.X.shape[1] == 2:  # 2D data
+                pre_fig = st.session_state.get("pre_fig")
+                st.plotly_chart(pre_fig, use_container_width=True)
+            
+            else:  # 1D regression data
+                pre_fig = st.session_state.get("pre_fig")
+                if pre_fig is None:
+                    fig_data = go.Figure()
+
+                    fig_data.add_trace(go.Scatter(
+                        x= st.session_state.X.flatten(), 
+                        y= st.session_state.y, 
+                        mode='markers', name='Data'))
+                    
+                    fig_data.update_layout(
+                        title="Regression Data",
+                        xaxis_title="X",
+                        yaxis_title="y",
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                st.plotly_chart(pre_fig, use_container_width=True)
+
+    
+    with col2:
+        # Data generation
+        st.markdown('<h3>Data parameters</h3>', unsafe_allow_html=True) 
+
+        # Classification 
+        if st.session_state.get("data_type") == "Classification":
+            num_classes = st.number_input(
+                "Number of classes",
+                min_value=2,
+                max_value=5,
+                value=2,
+                key="num_classes",
+                on_change= mark_data_change
+            )
+            num_samples = st.number_input(
+                "Number of samples",
+                min_value=20,
+                max_value=512,
+                value=100,
+                key="num_samples",
+                on_change= mark_data_change
+            )
+
+        # Regression    
+        if st.session_state.get("data_type") == "Regression":
+            num_samples = st.number_input(
+                "Number of samples",
+                min_value=20,
+                max_value=512,
+                value=100,
+                key="num_samples",
+            )
+
+    st.markdown("", unsafe_allow_html=True)
+
+    state_mode = {
+        "model": None,
+        "losses": [],
+        "accuracies": [],
+        "training_complete": False,
+    }
+
+    for k, v in state_mode.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+    # Training section
+    space, col1, space = st.columns([1.5,1,1.5])
+    with col1:
+        if st.button("Start Training", type="primary", width="stretch"):
+            with st.spinner("Training in progress..."):
+                model = create_model(
+                    input_size= st.session_state.X.shape[1],
+                    hidden_sizes= hidden_sizes,
+                    output_size= output_size,
+                    activation= activation
+                )
+                optimizer_type = Optimizer(
+                    optimizer_type= st.session_state.get("optimizer_type"),
+                    learning_rate= st.session_state.get("learning_rate")
+                )
+                losses, accuracies = train_model(
+                    X= st.session_state.X, 
+                    y= st.session_state.y,
+                    optimizer= optimizer_type,
+                    model= model,
+                    epochs= st.session_state.get("epochs"),
+                    batch_size= st.session_state.get("batch_size")
+                )
+
+                # Lưu kết quả vào session_state
                 st.session_state.model = model
-                st.session_state.output_size = output_size
-                
-                msg = st.empty()
-                msg.success("Training complete!")
-                time.sleep(2)   # Hiện trong 1 giây
-                msg.empty()     # Xóa message
-                
+                st.session_state.losses = losses or []
+
+                # Regression có thể trả None
+                st.session_state.accuracies = (accuracies or []) if st.session_state.get("data_type") == "Classification" else []
+                st.session_state.training_complete = True
+
+            messages = st.empty()
+            messages.success("Training completed!")
+            time.sleep(2)
+            messages.empty()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.session_state.training_complete and st.session_state.model is not None and len(st.session_state.losses) > 0:
+        render_training_results(
+            X = st.session_state.X,
+            y = st.session_state.y,
+            model = st.session_state.model,
+            losses = st.session_state.losses,
+            accuracies = (st.session_state.accuracies if st.session_state.get("data_type") == "Classification" else None),
+            epochs = st.session_state.get("epochs"),
+            problem_type = st.session_state.get("data_type"),   # "Classification" | "Regression"
+            center_charts = True
+        )
+    else:
+        st.info("Click **Start Training** to begin.")
 
 if __name__ == "__main__":
     main()
+    
+
+
