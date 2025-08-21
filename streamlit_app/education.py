@@ -25,5 +25,5 @@ def show_education():
     st.markdown("**Relevant Coursework:** Machine Vision, Artificial Intelligence," \
                 " Artificial Neural Network, Practice of Artificial Intelligence")
     
-    st.markdown("---")  # Horizontal separator
+    # st.markdown("---")  # Horizontal separator
 

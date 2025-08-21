@@ -20,4 +20,4 @@ def show_about():
         unsafe_allow_html=True
     )
 
-    st.markdown("---")  # Horizontal separator
+    # st.markdown("---")  # Horizontal separator

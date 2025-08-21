@@ -70,52 +70,92 @@ class DatasetLoader:
             X_test, y_test = X_test[idx], y_test[idx]
         return (X_train, y_train), (X_test, y_test), 10, (1, 28, 28)
 
-def visualize_sample_images(X, y, n_samples=16, dataset_name="Dataset"):
-    # Lấy tên lớp
+def visualize_sample_images(
+    X, y, n_samples: int = 16, dataset_name: str = "Dataset",
+    model=None, show_predict: bool = False
+):
+    """
+    Hiển thị n ảnh mẫu theo lưới (4 cột). Tự xử lý shape:
+    - Ảnh (C,H,W) → hiển thị (H,W,C)
+    - Ảnh xám (1,H,W) → hiển thị (H,W) kèm cmap='gray'
+    - Khi show_predict=True: tự thêm batch dim và suy luận 1 ảnh/lần.
+    """
     class_names = get_class_names(dataset_name)
-    
-    # Chọn ngẫu nhiên n_samples ảnh
-    indices = np.random.choice(len(X), size=n_samples, replace=False)
-    
-    # Tính layout: 4 cột, số hàng phụ thuộc n_samples
+
+    # ----- chọn mẫu an toàn -----
+    n_total = len(X)
+    n_samples = int(n_samples)
+    if n_samples <= 0:
+        n_samples = 1
+    replace = n_samples > n_total
+    idxs = np.random.choice(n_total, size=n_samples, replace=replace)
+
+    # ----- layout -----
     ncols = 4
-    nrows = (n_samples + ncols - 1) // ncols  # Làm tròn lên
-    figsize = (12, 3 * nrows)
-    
-    fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
-    axes = axes.flatten()
+    nrows = (n_samples + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 3 * nrows))
+    if isinstance(axes, np.ndarray):
+        axes = axes.flatten()
+    else:
+        axes = np.array([axes])  # khi chỉ có 1 subplot
 
-    for i, idx in enumerate(indices):
-        img = X[idx]
-        label = y[idx]
-        
-        # Chuẩn hóa định dạng ảnh: CHW -> HWC nếu cần
+    def _to_hwc(img):
+        """Trả về (img_display, cmap). Nhận (H,W), (H,W,C) hoặc (C,H,W)."""
+        if img.ndim == 2:                     # (H, W)
+            return img, "gray"
         if img.ndim == 3:
-            if img.shape[0] == 1:  # Ảnh xám: (1, H, W)
-                img_display = img[0]
-                cmap = 'gray'
-            elif img.shape[0] == 3:  # Ảnh màu: (3, H, W)
-                img_display = np.transpose(img, (1, 2, 0))  # → (H, W, 3)
-                cmap = None
-            else:
-                img_display = img  # Fallback
-                cmap = None
-        else:  # Giả định là (H, W) hoặc (H, W, C)
-            img_display = img
-            cmap = 'gray' if img.ndim == 2 else None
+            # Channel-first phổ biến: (1,H,W) hoặc (3,H,W)
+            if img.shape[0] in (1, 3):
+                c, h, w = img.shape
+                if c == 1:
+                    return img[0], "gray"
+                return np.transpose(img, (1, 2, 0)), None  # (H,W,C)
+            # Channel-last: (H,W,C)
+            return img, (None if img.shape[-1] != 1 else "gray")
+        # Trường hợp khác: cố gắng squeeze
+        img2 = np.squeeze(img)
+        return _to_hwc(img2)
 
-        # Hiển thị
-        axes[i].imshow(img_display, cmap=cmap)
-        class_label = class_names[label] if class_names else label
-        axes[i].set_title(f"Class: {class_label}", fontsize=10)
-        axes[i].axis("off")
+    def _scalar_label(lbl):
+        arr = np.array(lbl).reshape(-1)
+        return int(arr[0])
 
-    # Ẩn các subplot thừa (nếu có)
-    for i in range(n_samples, len(axes)):
-        axes[i].axis("off")
-    
+    for i, idx in enumerate(idxs):
+        ax = axes[i]
+        img = X[idx]
+        true_lbl = _scalar_label(y[idx])
+
+        # ----- predict (tuỳ chọn) -----
+        pred_lbl = None
+        if show_predict and model is not None:
+            model.eval()
+            x_in = img[None, ...]                 # (1, C, H, W) hoặc (1, H, W, C)
+            logits = np.asarray(model.forward(x_in))
+            # Chuẩn hoá về (1, C)
+            if logits.ndim == 1:                 # (C,)
+                logits = logits[None, :]
+            elif logits.ndim > 2:                # fallback: flatten chiều còn lại
+                logits = logits.reshape(logits.shape[0], -1)
+            pred_lbl = int(np.argmax(logits, axis=1)[0])
+
+        # ----- hiển thị -----
+        img_disp, cmap = _to_hwc(img)
+        ax.imshow(img_disp, cmap=cmap)
+        true_text = class_names[true_lbl] if class_names else true_lbl
+        if pred_lbl is not None:
+            pred_text = class_names[pred_lbl] if class_names else pred_lbl
+            ax.set_title(f"Pred: {pred_text} | True: {true_text}", fontsize=10)
+        else:
+            ax.set_title(f"Class: {true_text}", fontsize=10)
+        ax.axis("off")
+
+    # Ẩn subplot thừa
+    for j in range(n_samples, len(axes)):
+        axes[j].axis("off")
+
     plt.tight_layout()
     return fig
+
 
 def get_class_names(dataset_name):
     if dataset_name == "CIFAR-10":
@@ -165,10 +205,13 @@ def get_model_architecture_text(conv_cfgs, fc_cfgs, input_shape):
 def train_cnn_model(model, optimizer, loss_fn, X_train, y_train, X_val, y_val, epochs, batch_size):
     train_losses, train_accs, val_accs = [], [], []
     progress_bar, status_text, loss_chart = st.progress(0), st.empty(), st.empty()
+    rate = 0.0
+    batch_r = batch_iterator(X_train, y_train, batch_size, shuffle=True)
+    total_len_batch = epochs * batch_r.len_batch() 
     model.train()
     for epoch in range(epochs):
         ep_loss = 0.0; correct = 0; total = 0; batches = 0
-        for Xb, yb in batch_iterator(X_train, y_train, batch_size, shuffle=True):
+        for Xb, yb in batch_r:
             model.zero_grad()
             logits = model.forward(Xb)
             loss = loss_fn.forward(logits, yb)
@@ -176,6 +219,8 @@ def train_cnn_model(model, optimizer, loss_fn, X_train, y_train, X_val, y_val, e
             model.backward(grad)
             model.update_params(optimizer)
             ep_loss += loss; pred = np.argmax(logits, 1); correct += np.sum(pred == yb); total += len(yb); batches += 1
+            rate += 1
+            progress_bar.progress(rate / total_len_batch)
         avg_loss = ep_loss / max(batches, 1); train_acc = correct / max(total, 1)
         train_losses.append(avg_loss); train_accs.append(train_acc)
 
@@ -185,7 +230,7 @@ def train_cnn_model(model, optimizer, loss_fn, X_train, y_train, X_val, y_val, e
             logits = model.forward(Xb); v_correct += np.sum(np.argmax(logits,1) == yb); v_total += len(yb)
         val_acc = v_correct / max(v_total, 1); val_accs.append(val_acc); model.train()
 
-        progress_bar.progress((epoch+1)/epochs)
+            
         status_text.text(f"Epoch {epoch+1}/{epochs} | Loss {avg_loss:.4f} | Train Acc {train_acc:.3f} | Val Acc {val_acc:.3f}") 
         time.sleep(0.01)
     progress_bar.empty(); status_text.empty(); return train_losses, train_accs, val_accs
@@ -214,7 +259,7 @@ def main():
     with col1:
         st.markdown('<h3>Dataset Configuration</h3>', unsafe_allow_html=True)
         dataset_name = st.selectbox("Select Dataset", ["MNIST", "Fashion-MNIST"])
-        subset_size = st.slider("Training samples", 100, 10000, 1000, step=100)
+        subset_size = st.slider("Training samples", 100, 50000, 5000, step=100)
         train_val_split = st.slider("Train split", 0.0, 1.0, 0.8)
     with col2:
         st.markdown('<h3>CNN Architecture</h3>', unsafe_allow_html=True)
@@ -271,8 +316,8 @@ def main():
     with col3:
         st.markdown('<h3>Training Parameters</h3>', unsafe_allow_html=True)
         lr = st.slider("Learning rate", 0.0001, 0.01, 0.001, format="%.3f")
-        epochs = st.slider("Epochs", 1, 10, 1)
-        batch_size = st.slider("Batch size", 16, 128, 32)
+        epochs = st.slider("Epochs", 1, 10, 5)
+        batch_size = st.slider("Batch size", 16, 2048, 1024)
         opt_name = st.selectbox("Optimizer", ["Adam", "SGD", "Momentum", "RMSProp"])
 
     # Load dataset
@@ -399,8 +444,10 @@ def main():
                     if "optimizer" not in st.session_state:
                         st.session_state.optimizer = optimizer
 
+                    ms = st.empty()
                     loss_fn = SoftmaxCrossEntropyLoss()
-                    st.success("Model created successfully! Starting training...")
+                    ms.success("Model created successfully! Starting training...")
+                    ms.empty()
 
                     if "loss_fn" not in st.session_state:
                         st.session_state.loss_fn = loss_fn
@@ -425,6 +472,9 @@ def main():
                 logits = model.forward(Xb); t_correct += np.sum(np.argmax(logits, 1) == yb); t_total += len(yb)
             test_acc = t_correct / max(t_total, 1)
             st.success(f"Test Accuracy: **{test_acc:.3f}**")
+            st.pyplot(visualize_sample_images(
+                X= X_test, y= y_test, n_samples= 16, dataset_name= dataset_name, model= model, show_predict= True,
+            ))
 
 if __name__ == "__main__":
     main()

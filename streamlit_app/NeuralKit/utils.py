@@ -14,17 +14,40 @@ def clip_gradients(gradients, max_norm):
         return gradients / clip_coef
     return gradients
 
-def batch_iterator(X, y, batch_size=32, shuffle=True):
-    # Create indices and shuffle if required
-    len_samples = len(X)
-    indices = np.arange(len_samples)
-    if shuffle:
-        np.random.shuffle(indices)
-    # Generate mini-batches of size batch_size
-    for start in range(0, len_samples, batch_size):
-        end = min(start + batch_size, len_samples)
-        batch_indices = indices[start:end]
-        yield X[batch_indices], y[batch_indices]
+class batch_iterator:
+    def __init__(self, X, y, batch_size= 32, shuffle= True, drop_last= False):
+        self.X = X
+        self.y = y
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+    
+    def __iter__(self):
+        n_samples = len(self.X)
+        indices = np.arange(n_samples)
+
+        if self.shuffle:
+            np.random.shuffle(indices)
+
+        
+        for start in range(0, n_samples, self.batch_size):
+            end = min(start + self.batch_size, n_samples)
+            if end > n_samples and self.drop_last: 
+                break
+            else:
+                batch_indices = indices[start:end]
+                yield self.X[batch_indices], self.y[batch_indices]
+
+    def __len__(self):
+        return len(self.X)
+    
+    def len_batch(self):
+        if self.drop_last:
+            len_ = len(self.X) // self.batch_size
+        else:
+            len_ = np.ceil(len(self.X) / self.batch_size)
+        return len_
+
 
 def _serialize_layer(layer):
     # Convert a layer object into a serializable dictionary format

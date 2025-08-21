@@ -72,17 +72,15 @@ with left:
 
 # ===== RIGHT: TABS (không bọc <div> thủ công để tránh ô rỗng) =====
 with right:
-    tabs = st.tabs(["Home", "About", "Education", "Experience", "Projects", "Resume"])
+    tabs = st.tabs(["About", "Education", "Experience", "Projects", "Resume"])
 
     with tabs[0]:
-        home.show_home()
-    with tabs[1]:
         about.show_about()
-    with tabs[2]:
+    with tabs[1]:
         education.show_education()
-    with tabs[3]:
+    with tabs[2]:
         experience.show_experience()
-    with tabs[4]:
+    with tabs[3]:
         projects_page.show_projects()
-    with tabs[5]:
-        resume.show_resume()
+    with tabs[4]:
+        resume.show_resume_pdfjs("cv/CV_VoHongQuan.pdf")

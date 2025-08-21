@@ -8,7 +8,7 @@ def show_project():
         with cols[0]:
             st.subheader("Multilayer Perceptron (MLP) from Scratch")
         with cols[1]:
-            st.caption("*11/2024 – 12/2024*")
+            st.caption("*8/2024 – 9/2024*")
 
         st.markdown(
             "- Developed a **modular neural network framework** entirely in **NumPy**, covering layers "
@@ -30,7 +30,7 @@ def show_project():
             with c12:
                 # https://vhq-portfolio.streamlit.app/ or http://localhost:8501/
                 try:
-                    st.link_button("Demo", "https://localhost:8501/")
+                    st.link_button("Demo", "http://localhost:8501/MLP")
                 except:
-                    st.link_button("Demo", "https://vhq-portfolio.streamlit.app/")
+                    st.link_button("Demo", "https://vhq-portfolio.streamlit.app/MLP")
 

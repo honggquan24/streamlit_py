@@ -29,4 +29,4 @@ def show_experience():
     st.write("- Code and build something every day: from embedded AI, CV applications to robotics control systems.")
     st.write("- Explore modern AI tools and apply to real-world mini-projects.")
 
-    st.markdown("---")  # Horizontal separator
+    # st.markdown("---")  # Horizontal separator
